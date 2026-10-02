@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "STM32F103 + DAPLink",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/Release/Program.elf",
+      "configFiles": [
+        "interface/cmsis-dap.cfg",
+        "target/stm32f1x.cfg"
+      ],
+      "runToEntryPoint": "main"
+    }
+  ]
+}
