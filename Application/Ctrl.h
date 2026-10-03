@@ -1,12 +1,14 @@
 /*************************************************
 Copyright (C), 2016-2023, TYUT JBD TRoMaC
-File name: 
-Author: 
-Version:               
-Date: 
-Description:  
-Others:      
+File name: Ctrl.h
+Author: Li_Jiang
+Version: v2.0
+Date: 2023_09_16
+Description:  Switch and LED control state definition.
+Others:      This module manages the state of 4 switch inputs and the corresponding output/control data.
 Function List:
+    Switch_GetCode
+    Switch_GetState_Index
 History:
 <author>    <time>          <version>       <desc>
 **************************************************/
@@ -15,10 +17,10 @@ History:
 
 #include "headfiles.h"
 
-/* =========== ºê¶¨Òå ================ */
+/* =========== ç«¯å£/ææ€§å®šä¹‰ ================ */
 
-#define Switch_Polarity                     GPIO_PIN_RESET                                  // SwitchÓĞĞ§µçÆ½
-#define Switch_GetState_Index(Index)        ((hCtrl.Switch.Code >> (2 * (Index - 1))) & 0x01U)      // ¸ù¾İIndex»ñÈ¡µ¥¸ö¼üÎ»µÄ×´Ì¬
+#define Switch_Polarity                     GPIO_PIN_RESET                                  // å¼€å…³æœ‰æ•ˆç”µå¹³ï¼šä½ç”µå¹³æœ‰æ•ˆ
+#define Switch_GetState_Index(Index)        ((hCtrl.Switch.Code >> (2 * (Index - 1))) & 0x01U)      // è¯»å–ç¬¬ Index ä¸ªå¼€å…³çš„çŠ¶æ€ä½
 
 #define Switch_EN_ON                        ((Switch_EN_GPIO_Port->IDR & Switch_EN_Pin) != 0x00U)
 #define Switch_EN_OFF                       (!Switch_EN_ON)
@@ -30,31 +32,27 @@ typedef enum
     Switch_Index_2              = 2,
     Switch_Index_3              = 3,
     Switch_Index_4              = 4,
-}Switch_Index_enum;
-
+} Switch_Index_enum;
 
 
 typedef struct
 {
-    struct 
-    {
-        uint8_t     Code;
-    }Switch;
-    
     struct
     {
-        uint8_t     Code;
-    }LED;
-    
-    
-}hCtrl_TypeDef;
+        uint8_t Code;   // æŒ‰é”®çŠ¶æ€ç¼–ç ï¼ŒæŒ‰ 2bit/å¼€å…³ çš„æ–¹å¼æ‰“åŒ…
+    } Switch;
 
-/* =========== È«¾Ö±äÁ¿ÉùÃ÷ ========== */
+    struct
+    {
+        uint8_t Code;   // LED çŠ¶æ€ç¼–ç 
+    } LED;
+} hCtrl_TypeDef;
+
+/* =========== å…¨å±€å˜é‡å®šä¹‰ ========== */
 extern hCtrl_TypeDef hCtrl;
 
-/* =========== º¯ÊıÉùÃ÷ ============== */
+/* =========== å¯¹å¤–å‡½æ•°å£°æ˜ ============== */
 uint8_t Switch_GetCode(void);
-
 
 #endif /* __Ctrl_h */
 
