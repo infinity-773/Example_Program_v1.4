@@ -51,6 +51,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Libraries/common/pid.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Libraries/common/PWM.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Libraries/device/RC.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/LibTOT/TOTLib.c
 )
 
 # Add include paths
@@ -58,6 +59,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Application
     ${CMAKE_CURRENT_SOURCE_DIR}/Libraries/common
     ${CMAKE_CURRENT_SOURCE_DIR}/Libraries/device
+    ${CMAKE_CURRENT_SOURCE_DIR}/LibTOT
 )
 
 # Add project symbols (macros)

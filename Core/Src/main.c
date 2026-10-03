@@ -67,6 +67,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "headfiles.h"
+#include "TOTLib.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -91,25 +92,27 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+static uint32_t Background_LastTick;
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+static void SteeringControlUpdate(void);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-int16_t     AD_Left, AD_Right;                              // ���ҵ�е�ADCֵ
-float       Dir_Err;                                        // ����ƫ��
-int16_t     Dir_Output;                                     // �������ֵ
-uint16_t    SteerPWM = Steer_PWM_Center;                    // ���PWM���ֵ
+volatile int16_t AD_Left, AD_Right;                         // 左右两路 ADC 采样值
+float       Dir_Err;                                        // 转向偏差值
+int16_t     Dir_Output;                                     // 转向控制输出值
+uint16_t    SteerPWM = Steer_PWM_Center;                    // 转向 PWM 输出值
 
-// ��Ϊ˫���������ģ����һ������������������
-int16_t     Wheel_Left_Speed;                               // ��������ٶ�����
+// 由于是双电机驱动模式，因此保留左侧轮速控制量
+int16_t     Wheel_Left_Speed;                               // 电机目标速度
 
 /* USER CODE END 0 */
 
@@ -154,38 +157,32 @@ int main(void)
   MX_TIM1_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-  PWM_Init();   // PWM��ʼ��
-  RC_Init();    // SBUSЭ����ճ�ʼ��
-  
-  /* ADC???? */
+  PWM_Init();   // PWM 初始化
+  RC_Init();    // SBUS 遥控接收初始化
+
+  /* ADC 初始化 */
   ADC_Init();
-  
+  Background_LastTick = HAL_GetTick();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
-  {
-	  // ��ȡ���ҵ��ֵ
-      AD_Left    = ADC_ReadPin(PIN_PA4);
-      AD_Right   = ADC_ReadPin(PIN_PC5);
-	  
-	  // ���㷽��ƫ��
-      Dir_Err    = 0.5f * (AD_Left - AD_Right);
-	  
-	  // ���㷽�����ֵ
-      Dir_Output = Steer_PWM_Center + Dir_Err;                // �˴�������������װ��ʽ�й�
-	  
-	  // !!!!!�������޷� ��ֹɾ��!!!!!
-      SteerPWM   = Data_Limit(Dir_Output, Steer_PWM_Limit_Lift, Steer_PWM_Limit_Right);
+  {   // 10ms 控制循环 中断优先级5，存在较少更高优先级
+      uint32_t now = HAL_GetTick();
+      if ((uint32_t)(now - Background_LastTick) < 10U)
+      {
+        __WFI();
+        continue;
+      }
+      Background_LastTick = now;
 
-	  
-	  
-	  // �����������
+      // 根据使能开关状态控制电机驱动和轮速
       if (Switch_EN_ON)
       {
           Motor_DriverEnable(1);
-          Wheel_Left_Speed = 2800;	  
+          Wheel_Left_Speed = 2800;
       }
       else
       {
@@ -193,30 +190,25 @@ int main(void)
           Wheel_Left_Speed = 0;
       }
 
-	  // ���
+      // 设置转向 PWM 和左轮速度
       PWM_SetPin(PIN_PB0, SteerPWM);
       Motor_SetSpeed(MOTOR_LEFT, Wheel_Left_Speed);
 
-	  
-	  // ��ȡ���뿪��״̬
+      // 读取开关状态并更新编码值
       Switch_GetCode();
 
-	  
-	  // ������ư���LED
+      // 根据开关状态更新 LED 和 PWM 呼吸灯
       PWM_SetPin(PIN_PA11, Switch_GetState_Index(Switch_Index_1) * PWM_BreathDuty());
       HAL_GPIO_WritePin(LED_2_GPIO_Port, LED_2_Pin, Switch_GetState_Index(Switch_Index_2));
       HAL_GPIO_WritePin(LED_3_GPIO_Port, LED_3_Pin, Switch_GetState_Index(Switch_Index_3));
       HAL_GPIO_WritePin(LED_4_GPIO_Port, LED_4_Pin, Switch_GetState_Index(Switch_Index_4));
-      
-      // ���ڵ�����Ϣ����
+
+      // 发送实时数据到串口调试界面
       VOFA_JustFloat(&huart_DBG);
-      
-      
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    
-    HAL_Delay(10);
   }
   /* USER CODE END 3 */
 }
@@ -268,6 +260,16 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+static void SteeringControlUpdate(void)
+{//读取左右两路 ADC 采样值
+  AD_Left = ADC_ReadPin(PIN_PA4);
+  AD_Right = ADC_ReadPin(PIN_PC5);
+  
+  Dir_Err = 0.5f * (AD_Left - AD_Right);
+  Dir_Output = Steer_PWM_Center + Dir_Err;
+  SteerPWM = Data_Limit(Dir_Output, Steer_PWM_Limit_Lift, Steer_PWM_Limit_Right);
+  PWM_SetPin(PIN_PB0, SteerPWM);
+}
 
 /* USER CODE END 4 */
 
@@ -286,7 +288,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM7)
   {
+    static uint8_t control_divider = 0U;
+
     HAL_IncTick();
+    control_divider++;
+    if (control_divider >= 10U)
+    {
+      control_divider = 0U;
+      SteeringControlUpdate();
+    }
   }
   /* USER CODE BEGIN Callback 1 */
 
