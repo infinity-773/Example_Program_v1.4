@@ -23,7 +23,7 @@
       "request": "launch",
       "servertype": "openocd",
       "cwd": "${workspaceFolder}",
-      "executable": "${workspaceFolder}/build/Release/Program.elf",
+      "executable": "${workspaceFolder}/build/Debug/Example_Program_v1.4.elf",
       "configFiles": [
         "interface/cmsis-dap.cfg",
         "target/stm32f1x.cfg"
