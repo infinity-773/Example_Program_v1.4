@@ -60,6 +60,7 @@
 #include "main.h"
 #include "adc.h"
 #include "dma.h"
+#include "pid.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -93,6 +94,8 @@
 
 /* USER CODE BEGIN PV */
 static uint32_t Background_LastTick;
+static TOT_MovingAverage5_t AD_Left_Filter;
+static TOT_MovingAverage5_t AD_Right_Filter;
 
 /* USER CODE END PV */
 
@@ -107,9 +110,22 @@ static void SteeringControlUpdate(void);
 /* USER CODE BEGIN 0 */
 
 volatile int16_t AD_Left, AD_Right;                         // 左右两路 ADC 采样值
-float       Dir_Err;                                        // 转向偏差值
-int16_t     Dir_Output;                                     // 转向控制输出值
-uint16_t    SteerPWM = Steer_PWM_Center;                    // 转向 PWM 输出值
+int16_t AD_Left_filted, AD_Right_filted;                    // 左右两路 ADC 滤波后值
+float_t AD_Left_Normalized, AD_Right_Normalized;          // 左右两路 ADC 归一化值
+
+float currErr = 0;                                              // 当前误差值(-1~1)
+float errToPos = 0;                                         // 误差值转化为位置值(-1~1)
+
+uint16_t steerCenter = Steer_PWM_Center;                   // 转向 PWM 输出值
+uint16_t steerOutput = 0;
+
+static PID_HandleTypeDef PIDcontroller;                          // PID 控制器
+static PID_InitTypeDef PIDInit;                            // PID 控制器初始化结构体
+
+const float_t leftMin = 0.0f;                                 // 左路 ADC 归一化最小值
+const float_t leftMax = 4095.0f;                              // 左路 ADC 归一化最大值 //TODO
+const float_t rightMin = 0.0f;                                // 右路 ADC 归一化最小值
+const float_t rightMax = 4095.0f;                             // 右路 ADC 归一化最大值  //TODO
 
 // 由于是双电机驱动模式，因此保留左侧轮速控制量
 int16_t     Wheel_Left_Speed;                               // 电机目标速度
@@ -164,12 +180,16 @@ int main(void)
   ADC_Init();
   Background_LastTick = HAL_GetTick();
 
+  //PID初始化
+  PID_init(&PIDcontroller, &PIDInit);
+  PID_loadparam(&PIDcontroller, 0.5f, 0.0f, 0.0f);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
-  {   // 10ms 控制循环 中断优先级5，存在较少更高优先级
+  { 
       uint32_t now = HAL_GetTick();
       if ((uint32_t)(now - Background_LastTick) < 10U)
       {
@@ -182,7 +202,7 @@ int main(void)
       if (Switch_EN_ON)
       {
           Motor_DriverEnable(1);
-          Wheel_Left_Speed = 2800;
+          Wheel_Left_Speed = 1000;
       }
       else
       {
@@ -190,8 +210,7 @@ int main(void)
           Wheel_Left_Speed = 0;
       }
 
-      // 设置转向 PWM 和左轮速度
-      PWM_SetPin(PIN_PB0, SteerPWM);
+      // 设置左轮速度
       Motor_SetSpeed(MOTOR_LEFT, Wheel_Left_Speed);
 
       // 读取开关状态并更新编码值
@@ -208,8 +227,9 @@ int main(void)
 
     /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+    
   }
+  /* USER CODE BEGIN 3 */
   /* USER CODE END 3 */
 }
 
@@ -261,14 +281,28 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 static void SteeringControlUpdate(void)
-{//读取左右两路 ADC 采样值
+{
+
+  steerOutput = Data_Limit(steerOutput, Steer_PWM_Limit_Lift, Steer_PWM_Limit_Right);
+}
+
+static void updateADC(void){
   AD_Left = ADC_ReadPin(PIN_PA4);
   AD_Right = ADC_ReadPin(PIN_PC5);
-  
-  Dir_Err = 0.5f * (AD_Left - AD_Right);
-  Dir_Output = Steer_PWM_Center + Dir_Err;
-  SteerPWM = Data_Limit(Dir_Output, Steer_PWM_Limit_Lift, Steer_PWM_Limit_Right);
-  PWM_SetPin(PIN_PB0, SteerPWM);
+  AD_Left_filted = TOT_AverageFilt(&AD_Left_Filter, AD_Left);
+  AD_Right_filted = TOT_AverageFilt(&AD_Right_Filter, AD_Right);
+  AD_Left_Normalized = TOT_normalize(leftMin, leftMax, AD_Left_filted);
+  AD_Right_Normalized = TOT_normalize(rightMin, rightMax, AD_Right_filted);
+  currErr = TOT_cla(AD_Left_Normalized, AD_Right_Normalized);
+}
+
+static void updatePID(void){
+
+}
+
+static void updateStaticSteer(void){
+      steerOutput = 750U;
+
 }
 
 /* USER CODE END 4 */
@@ -288,14 +322,26 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM7)
   {
+    static uint8_t sample_divider = 0U;
     static uint8_t control_divider = 0U;
 
     HAL_IncTick();
+    sample_divider++;
     control_divider++;
+
+    if (sample_divider >= 5U)
+    {
+      sample_divider = 0U;
+      updateADC();
+    }
+
     if (control_divider >= 10U)
     {
       control_divider = 0U;
-      SteeringControlUpdate();
+      //SteeringControlUpdate();
+      updateStaticSteer();
+      //********不要删改这一行************ */
+      PWM_SetPin(PIN_PB0, steerOutput);
     }
   }
   /* USER CODE BEGIN Callback 1 */
