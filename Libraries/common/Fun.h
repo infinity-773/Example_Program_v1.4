@@ -3,7 +3,7 @@
     
 #include "headfiles.h"
 
-/* =========== ºê¶¨Òå ============= */
+/* =========== ï¿½ê¶¨ï¿½ï¿½ ============= */
 #define Amplitude_Limit(Value,Dowm,Up)  ((Value) < (Dowm) ? (Dowm) : ((Value) > (Up) ? (Up) : (Value)));
 #define Step_Limit(New,Old,Range)       (New > (Old + Range) ? (Old + Range) : (New < (Old - Range) ? (Old - Range) : (New)))
 #define ABS(x)                          (((x) >= (0.0f)) ? (x) : (-(x)))
@@ -19,11 +19,11 @@
 
 #define VOFA_JustFloat_index    2
 
-/* ========= È«¾Ö±äÁ¿ÉùÃ÷ ========== */
+/* ========= È«ï¿½Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ========== */
 
 
 
-/* =========== º¯ÊýÉùÃ÷ ============ */
+/* =========== ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ============ */
 void MasterPC_send(UART_HandleTypeDef *huart);
 void VOFA_JustFloat(UART_HandleTypeDef *huart);
 

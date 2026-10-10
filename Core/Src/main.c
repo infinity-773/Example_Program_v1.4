@@ -78,9 +78,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define Steer_PWM_Center        750
-#define Steer_PWM_Limit_Lift    (Steer_PWM_Center - 60)
-#define Steer_PWM_Limit_Right   (Steer_PWM_Center + 60)
+#define Steer_PWM_Center        747
+#define Steer_PWM_Limit_Lift    (Steer_PWM_Center - 126)//616
+#define Steer_PWM_Limit_Right   (Steer_PWM_Center + 134)//872
 
 
 /* USER CODE END PD */
@@ -202,7 +202,7 @@ int main(void)
       if (Switch_EN_ON)
       {
           Motor_DriverEnable(1);
-          Wheel_Left_Speed = 1000;
+          Wheel_Left_Speed = 600;
       }
       else
       {
@@ -301,7 +301,7 @@ static void updatePID(void){
 }
 
 static void updateStaticSteer(void){
-      steerOutput = 750U;
+      steerOutput = 747U;
 
 }
 
