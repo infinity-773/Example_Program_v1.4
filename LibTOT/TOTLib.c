@@ -23,24 +23,24 @@ float TOT_cla(float leftnum,float rightnum){ //TODO :参数改为正数
     return output;
 }
 
-uint16_t TOT_AverageFilt(TOT_MovingAverage5_t *filter, uint16_t sample)
+uint16_t TOT_AverageFilt(TOT_MovingAverage5_t *filter, uint16_t rawValue)
 {
     if (filter == NULL)
     {
-        return sample;
+        return rawValue;
     }
 
     if (filter->sample_count < 5U)
     {
-        filter->samples[filter->next_index] = sample;
-        filter->sum += sample;
+        filter->samples[filter->next_index] = rawValue;
+        filter->sum += rawValue;
         filter->sample_count++;
     }
     else
     {
         filter->sum -= filter->samples[filter->next_index];
-        filter->samples[filter->next_index] = sample;
-        filter->sum += sample;
+        filter->samples[filter->next_index] = rawValue;
+        filter->sum += rawValue;
     }
 
     filter->next_index = (uint8_t)((filter->next_index + 1U) % 5U);
