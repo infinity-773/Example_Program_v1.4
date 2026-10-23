@@ -96,8 +96,8 @@
 
 /* USER CODE BEGIN PV */
 static uint32_t Background_LastTick;
-static TOT_MovingAverage5_t AD_Left_Filter;
-static TOT_MovingAverage5_t AD_Right_Filter;
+static TOT_MovingAverage3_t AD_Left_Filter;
+static TOT_MovingAverage3_t AD_Right_Filter;
 
 /* USER CODE END PV */
 
@@ -110,30 +110,47 @@ static void SteeringControlUpdate(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+/*                          全局状态变量定义                                     */
 volatile int16_t AD_Left, AD_Right;                         // 左右两路 ADC 采样值
-int16_t AD_Left_filted, AD_Right_filted;                    // 左右两路 ADC 滤波后值
-float_t AD_Left_Normalized, AD_Right_Normalized;          // 左右两路 ADC 归一化值
+static int16_t AD_Left_filted, AD_Right_filted;                    // 左右两路 ADC 滤波后值
+static float currErr = 0;                                          //均值滤波->差比和
+static float rawErr = 0;                                           //原值->差比和
+static float pidOut = 0;                                           // 当前误差值(-1~1)
+static float posErr = 0;                                           // 误差值转化为位置值(+-130)
+static int16_t Wheel_Left_Speed;                               // 电机目标速度
+static float kv  = 0;
+uint16_t steerOutput = 747U;                                // 转向 PWM 输出值
+static float kp = 1.52f; 
+static float ki = 0.0f;  
+static float kd = 0.0f;
+static float s =  0.0f;                                     //线性插值因子 && 速度因子
 
-float currErr = 0;
-float pidOut = 0;                                              // 当前误差值(-1~1)
-float posErr = 0;                                         // 误差值转化为位置值(+-130)
-
-const uint16_t steerCenter = Steer_PWM_Center;                   
-uint16_t steerOutput = 747U;                                       // 转向 PWM 输出值 
-
+/*                                     全局常量定义                                          */
 static PID_HandleTypeDef PIDcontroller;                          // PID 控制器
 static PID_InitTypeDef PIDInit;                  // PID 控制器初始化结构体
+static PID_TypeDef PID = {
+  .iOutMax = 0.0f,
+  .outMaxABS = 1.0f
+};
+static const PID_Map PIDMap = {
+    .KpMin = 1.3f,
+    .KiMin = 0.0f,
+    .KdMin = 0.25f,
+    .KpMax = 1.5f,
+    .KiMax = 0.0f,
+    .KdMax = 0.4f
+};
 static const float_t KR = 131;          // PID 输出转化为位置值的比例系数 && 舵机最大PWM变化量
-static float_t KspeedSclar = 0;
+static const float deadZone = 0.06;
 
-const float_t leftMin = 0.0f;                                 // 左路 ADC 归一化最小值
-const float_t leftMax = 4095.0f;                              // 左路 ADC 归一化最大值 //TODO
-const float_t rightMin = 0.0f;                                // 右路 ADC 归一化最小值
-const float_t rightMax = 4095.0f;                             // 右路 ADC 归一化最大值  //TODO
+const uint16_t steerCenter = Steer_PWM_Center;
 
-// 由于是双电机驱动模式，因此保留左侧轮速控制量
-int16_t     Wheel_Left_Speed;                               // 电机目标速度
+const float_t leftMin = 0.0f;                                 // 左路 ADC 最小值
+const float_t leftMax = 4095.0f;                              // 左路 ADC 最大值 //TODO
+const float_t rightMin = 0.0f;                                // 右路 ADC 最小值
+const float_t rightMax = 4095.0f;                             // 右路 ADC 最大值  //TODO
+
+
 
 /* USER CODE END 0 */
 
@@ -151,7 +168,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+   HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -188,14 +205,15 @@ int main(void)
   //PID初始化
   PIDInit = (PID_InitTypeDef){
       .mode = PID_MODE_POSITION,
-      .kp = 1.52f,
-      .ki = 0.0f,
-      .kd = 0.09f,
+      .kp = kp,
+      .ki = ki,
+      .kd = kd,
       .iOutMax = 0.0f,
       .outMax = 1.0f
   };
   PID_init(&PIDcontroller, &PIDInit);
   
+  //PID_LoadGains(&PID, kp, ki, kd);
 
   /* USER CODE END 2 */
 
@@ -215,7 +233,8 @@ int main(void)
       if (Switch_EN_ON)
       {
           Motor_DriverEnable(1);
-          Wheel_Left_Speed = 430 + 250 * KspeedSclar * KspeedSclar * KspeedSclar;
+          //Wheel_Left_Speed = 420 + 100 * kv * kv;
+          Wheel_Left_Speed = 515;
       }
       else
       {
@@ -302,23 +321,40 @@ static void SteeringControlUpdate(void)
 static void updateADC(void){
   AD_Left = ADC_ReadPin(PIN_PC5);
   AD_Right = ADC_ReadPin(PIN_PA4);
+
+  rawErr = TOT_DiffRatio(AD_Left, AD_Right); //-1~1
+
   AD_Left_filted = TOT_AverageFilt(&AD_Left_Filter, AD_Left);
   AD_Right_filted = TOT_AverageFilt(&AD_Right_Filter, AD_Right);
-  AD_Left_Normalized = TOT_normalize(AD_Left_filted, 0, leftMax);
-  AD_Right_Normalized = TOT_normalize(AD_Right_filted, 0, rightMax);
-  currErr = TOT_cla(AD_Left_Normalized, AD_Right_Normalized); //-1~1
+  currErr = TOT_DiffRatio(AD_Left_filted, AD_Right_filted); //-1~1
+
+  applyDeadZone(&currErr , deadZone);
+  applyDeadZone(&rawErr , deadZone);
 }
 
 static void updatePID(void){
   pidOut = PID_calc_err(&PIDcontroller, -currErr);
-  posErr = posErr > 0 ? pidOut *  KR  : pidOut * (KR + 1);
+  posErr = pidOut > 0 ? pidOut *  KR  : pidOut * (KR + 1);
 
-  // set lower speed when rotating
-  int16_t steerZeroPos = steerOutput - steerCenter;
-  uint16_t steerABS = steerZeroPos > 0 ? steerZeroPos : -steerZeroPos;
-  KspeedSclar = 1 - TOT_normalize(steerABS, 0 , KR);
+}
 
+/*currErr: 0------------0.06-----------0.5--------------1*/
+/*s      : 0-------------0----0~1线性---1----------------1*/
+static void updatePID_TOT(void){
+  s = TOT_normalize(fabs(currErr) , 0.06 , 0.5);
+  s = clampf(s , 0.0f , 1.0f);
+  kp = lerp(PIDMap.KpMin , PIDMap.KpMax , s);
+  kd = lerp(PIDMap.KdMin , PIDMap.KdMax , s);
 
+  PID_LoadGains(&PID,kp,ki,kd);
+  pidOut = PID_Calculate(&PID, -currErr, 0.0f, -rawErr);
+  posErr = pidOut > 0 ? pidOut *  KR  : pidOut * (KR + 1);
+
+}
+
+static void updateSpeed(void){
+    // set lower speed when rotating
+  kv = 1 - TOT_normalize(fabs(currErr), 0 , 1);
 }
 
 static void updateStaticSteer(void){
@@ -354,18 +390,19 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     {
       sample_divider = 0U;
       updateADC();
-      updatePID();
-      //SteeringControlUpdate();
+      updatePID_TOT();
+      SteeringControlUpdate();
+      PWM_SetPin(PIN_PB0, steerOutput);
     }
 
     if (control_divider >= 10U)
     {
       control_divider = 0U;
-      SteeringControlUpdate();
-      //updateStaticSteer();
       //updatePID();
-      //********不要删改这一行************ */
-      PWM_SetPin(PIN_PB0, steerOutput);
+      //updateADC();
+      //SteeringControlUpdate();
+      updateSpeed();
+      //PWM_SetPin(PIN_PB0, steerOutput);
     }
   }
   /* USER CODE BEGIN Callback 1 */
