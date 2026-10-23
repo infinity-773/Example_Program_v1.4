@@ -113,6 +113,7 @@ static void SteeringControlUpdate(void);
 /*                          全局状态变量定义                                     */
 volatile int16_t AD_Left, AD_Right;                         // 左右两路 ADC 采样值
 static int16_t AD_Left_filted, AD_Right_filted;                    // 左右两路 ADC 滤波后值
+static float AD_Left_Normalized , AD_Right_Normalized;
 static float currErr = 0;                                          //均值滤波->差比和
 static float rawErr = 0;                                           //原值->差比和
 static float pidOut = 0;                                           // 当前误差值(-1~1)
@@ -120,7 +121,7 @@ static float posErr = 0;                                           // 误差值�
 static int16_t Wheel_Left_Speed;                               // 电机目标速度
 static float kv  = 0;
 uint16_t steerOutput = 747U;                                // 转向 PWM 输出值
-static float kp = 1.52f; 
+static float kp = 0.0f; 
 static float ki = 0.0f;  
 static float kd = 0.0f;
 static float s =  0.0f;                                     //线性插值因子 && 速度因子
@@ -133,21 +134,21 @@ static PID_TypeDef PID = {
   .outMaxABS = 1.0f
 };
 static const PID_Map PIDMap = {
-    .KpMin = 1.3f,
+    .KpMin = 0.77f,
     .KiMin = 0.0f,
-    .KdMin = 0.25f,
-    .KpMax = 1.5f,
+    .KdMin = 0.23f,
+    .KpMax = 1.53f,
     .KiMax = 0.0f,
-    .KdMax = 0.4f
+    .KdMax = 0.5f
 };
 static const float_t KR = 131;          // PID 输出转化为位置值的比例系数 && 舵机最大PWM变化量
-static const float deadZone = 0.06;
+static const float deadZone = 0.03;
 
 const uint16_t steerCenter = Steer_PWM_Center;
 
-const float_t leftMin = 0.0f;                                 // 左路 ADC 最小值
+const float_t leftMin = 700.0f;                                 // 左路 ADC 最小值
 const float_t leftMax = 4095.0f;                              // 左路 ADC 最大值 //TODO
-const float_t rightMin = 0.0f;                                // 右路 ADC 最小值
+const float_t rightMin = 700.0f;                                // 右路 ADC 最小值
 const float_t rightMax = 4095.0f;                             // 右路 ADC 最大值  //TODO
 
 
@@ -234,7 +235,7 @@ int main(void)
       {
           Motor_DriverEnable(1);
           //Wheel_Left_Speed = 420 + 100 * kv * kv;
-          Wheel_Left_Speed = 515;
+          Wheel_Left_Speed = 390 + 170 * kv * kv;
       }
       else
       {
@@ -326,7 +327,10 @@ static void updateADC(void){
 
   AD_Left_filted = TOT_AverageFilt(&AD_Left_Filter, AD_Left);
   AD_Right_filted = TOT_AverageFilt(&AD_Right_Filter, AD_Right);
-  currErr = TOT_DiffRatio(AD_Left_filted, AD_Right_filted); //-1~1
+  AD_Left_Normalized = TOT_normalize(AD_Left_filted, leftMin, leftMax);
+  AD_Right_Normalized = TOT_normalize(AD_Right_filted, rightMin, rightMax);
+  currErr = TOT_DiffRatio(AD_Left_Normalized, AD_Right_Normalized); //-1~1
+  currErr = clampf(currErr, -1 , 1);
 
   applyDeadZone(&currErr , deadZone);
   applyDeadZone(&rawErr , deadZone);
@@ -354,7 +358,7 @@ static void updatePID_TOT(void){
 
 static void updateSpeed(void){
     // set lower speed when rotating
-  kv = 1 - TOT_normalize(fabs(currErr), 0 , 1);
+  kv = 1 - s;
 }
 
 static void updateStaticSteer(void){
