@@ -105,6 +105,7 @@ static TOT_MovingAverage3_t AD_Right_Filter;
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 static void SteeringControlUpdate(void);
+static void updateSwichState(int code);
 
 /* USER CODE END PFP */
 
@@ -113,18 +114,21 @@ static void SteeringControlUpdate(void);
 /*                          全局状态变量定义                                     */
 volatile int16_t AD_Left, AD_Right;                         // 左右两路 ADC 采样值
 static int16_t AD_Left_filted, AD_Right_filted;                    // 左右两路 ADC 滤波后值
-static float AD_Left_Normalized , AD_Right_Normalized;
+static float AD_Left_Normalized , AD_Right_Normalized;      //左右两路归一化值
 float currErr = 0;                                          //均值滤波->差比和
 float rawErr = 0;                                           //原值->差比和
 static float pidOut = 0;                                           // 当前误差值(-1~1)
 float posErr = 0;                                           // 误差值转化为位置值(+-130)
 int16_t Wheel_Left_Speed;                               // 电机目标速度
+int16_t baseSpeed = 0;
+int16_t addSpeed = 0;
 static float kv  = 0;
 uint16_t steerOutput = 747U;                                // 转向 PWM 输出值
 static float kp = 0.0f; 
 static float ki = 0.0f;  
 static float kd = 0.0f;
 float s =  0.0f;                                     //线性插值因子 && 速度因子
+uint16_t swichState = 0;
 
 /*                                     全局常量定义                                          */
 static PID_HandleTypeDef PIDcontroller;                          // PID 控制器
@@ -235,7 +239,7 @@ int main(void)
       {
           Motor_DriverEnable(1);
           //Wheel_Left_Speed = 420 + 100 * kv * kv;
-          Wheel_Left_Speed = 390 + 170 * kv * kv;
+          Wheel_Left_Speed = baseSpeed + addSpeed * kv * kv;
       }
       else
       {
@@ -247,7 +251,9 @@ int main(void)
       Motor_SetSpeed(MOTOR_LEFT, Wheel_Left_Speed);
 
       // 读取开关状态并更新编码值
-      Switch_GetCode();
+      swichState = Switch_GetCode();
+
+      updateSwichState(swichState);
 
       // 根据开关状态更新 LED 和 PWM 呼吸灯
       PWM_SetPin(PIN_PA11, Switch_GetState_Index(Switch_Index_1) * PWM_BreathDuty());
@@ -364,6 +370,25 @@ static void updateSpeed(void){
 static void updateStaticSteer(void){
       steerOutput = 747U;
 
+}
+
+static void updateSwichState(int code){ 
+      if (code & 0x01U) {
+          // Switch_1 当前为有效状态
+        baseSpeed = 390;
+        addSpeed = 170;
+      }
+      if (code & 0x04U) {
+          // Switch_2 当前为有效状态
+      }
+  
+      if (code & 0x10U) {
+          // Switch_3 当前为有效状态
+      }
+  
+      if (code & 0x40U) {
+          // Switch_4 当前为有效状态
+      }
 }
 
 /* USER CODE END 4 */
