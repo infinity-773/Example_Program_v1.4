@@ -114,17 +114,17 @@ static void SteeringControlUpdate(void);
 volatile int16_t AD_Left, AD_Right;                         // 左右两路 ADC 采样值
 static int16_t AD_Left_filted, AD_Right_filted;                    // 左右两路 ADC 滤波后值
 static float AD_Left_Normalized , AD_Right_Normalized;
-static float currErr = 0;                                          //均值滤波->差比和
-static float rawErr = 0;                                           //原值->差比和
+float currErr = 0;                                          //均值滤波->差比和
+float rawErr = 0;                                           //原值->差比和
 static float pidOut = 0;                                           // 当前误差值(-1~1)
-static float posErr = 0;                                           // 误差值转化为位置值(+-130)
-static int16_t Wheel_Left_Speed;                               // 电机目标速度
+float posErr = 0;                                           // 误差值转化为位置值(+-130)
+int16_t Wheel_Left_Speed;                               // 电机目标速度
 static float kv  = 0;
 uint16_t steerOutput = 747U;                                // 转向 PWM 输出值
 static float kp = 0.0f; 
 static float ki = 0.0f;  
 static float kd = 0.0f;
-static float s =  0.0f;                                     //线性插值因子 && 速度因子
+float s =  0.0f;                                     //线性插值因子 && 速度因子
 
 /*                                     全局常量定义                                          */
 static PID_HandleTypeDef PIDcontroller;                          // PID 控制器
