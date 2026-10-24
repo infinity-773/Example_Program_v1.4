@@ -4,39 +4,39 @@ File name: PWM.c
 Author: Li_Jiang
 Version: v1.0       
 Date: 2023_09_16
-Description: ¶ÔPWMÊä³ö¹¦ÄÜ×ö¼òµ¥µÄ·â×°
+Description: ï¿½ï¿½PWMï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½òµ¥µÄ·ï¿½×°
 Others: NULL
 Function List:  PWM_Init()
                 PWM_SetDuty()
 History:
 <author>    <time>          <version>       <desc>
-Li_Jiang    2023_09_16      v1.0            ¶ÔPWMÊä³ö¹¦ÄÜ×ö¼òµ¥µÄ·â×°
+Li_Jiang    2023_09_16      v1.0            ï¿½ï¿½PWMï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½òµ¥µÄ·ï¿½×°
 **************************************************/
 #include "PWM.h"
 
-/* ============ È«¾Ö±äÁ¿ÉùÃ÷ ============= */
+/* ============ È«ï¿½Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ============= */
 
-/* ============ ¾Ö²¿±äÁ¿ÉùÃ÷ ============= */
+/* ============ ï¿½Ö²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ============= */
 
-/* ============ ÄÚ²¿º¯ÊýÉùÃ÷ ============= */
+/* ============ ï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ============= */
 
-/* ============ º¯Êý¶¨Òå ================= */
+/* ============ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ================= */
 
 
 
 /**
   * @name   PWM_Init()
-  * @brief  ¿ªÆôÒÑ¾­³õÊ¼»¯µÄ¸÷¸öPWMÍ¨µÀ
+  * @brief  ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¾ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½Ä¸ï¿½ï¿½ï¿½PWMÍ¨ï¿½ï¿½
   * @call   External
   * @param  NULL
   * @RetVal NULL
   */
 void PWM_Init(void)
 {
-    /* Ê¹ÄÜ¶¨Ê±Æ÷ */
-    // TIM1 Çý¶¯
+    /* Ê¹ï¿½Ü¶ï¿½Ê±ï¿½ï¿½ */
+    // TIM1 ï¿½ï¿½ï¿½ï¿½
 
-    // ÅäÖÃÊä³öÄ£Ê½
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½
     TIM1->CCMR1 &= ~TIM_CCMR1_OC1M;
     TIM1->CCMR1 |= (TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2);
 
@@ -46,41 +46,38 @@ void PWM_Init(void)
     TIM1->CCMR2 &= ~TIM_CCMR2_OC3M;
     TIM1->CCMR2 |= (TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_2);
 
-    // ¿ªÊ¹ÄÜ
+    // ï¿½ï¿½Ê¹ï¿½ï¿½
     HAL_TIMEx_OCN_Start(&htim1, TIM_CHANNEL_1);   // TIM1_CH1N--->B13
     HAL_TIMEx_OCN_Start(&htim1, TIM_CHANNEL_2);   // TIM1_CH2N--->B14
     HAL_TIMEx_OCN_Start(&htim1, TIM_CHANNEL_3);   // TIM1_CH3N--->B15
     HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);     // TIM1_CH4 --->A11
 
-    // TIM4 Çý¶¯
+    // TIM4 ï¿½ï¿½ï¿½ï¿½
     HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);     // TIM4_CH1---->B6
     HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);     // TIM4_CH2---->B7
     HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);     // TIM4_CH3---->B8
     HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);     // TIM4_CH4---->B9
 
-    // TIM8 Çý¶¯
-    HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_1);     // TIM8_CH1---->C6
-
-    // TIM2 ¶æ»ú
+    // TIM2 ï¿½ï¿½ï¿½
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);     // TIM2_CH1---->A0
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);     // TIM2_CH2---->A1
 
-    // TIM3 ¶æ»ú
+    // TIM3 ï¿½ï¿½ï¿½
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);     // TIM3_CH1---->A6
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);     // TIM3_CH2---->A7
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);     // TIM3_CH3---->B0
 
-    // TIM5 ¶æ»ú
+    // TIM5 ï¿½ï¿½ï¿½
     HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_3);     // TIM5_CH3---->A2
     HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_4);     // TIM5_CH4---->A3
 }/* PWM_Init */
 
 /**
   * @name   PWM_SetDuty()
-  * @brief  ÉèÖÃPWMÍ¨µÀµÄÕ¼¿Õ±È
+  * @brief  ï¿½ï¿½ï¿½ï¿½PWMÍ¨ï¿½ï¿½ï¿½ï¿½Õ¼ï¿½Õ±ï¿½
   * @call   External
-  * @param  *Channel    PWMÍ¨µÀ¶ÔÓ¦µÄ±È½Ï¼Ä´æÆ÷µØÖ·
-  * @param  Duty        PWMÍ¨µÀÒªÉèÖÃµÄÕ¼¿Õ±È
+  * @param  *Channel    PWMÍ¨ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½Ä±È½Ï¼Ä´ï¿½ï¿½ï¿½ï¿½ï¿½Ö·
+  * @param  Duty        PWMÍ¨ï¿½ï¿½Òªï¿½ï¿½ï¿½Ãµï¿½Õ¼ï¿½Õ±ï¿½
   * @RetVal NULL
   */
 void PWM_SetDuty(uint32_t *Channel, int32_t Duty)

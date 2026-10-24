@@ -110,7 +110,7 @@ float PID_Calculate(PID_TypeDef *pid, float pIn , float iIn, float dIn)
 
     // 对ADC原始值做微分->低通滤波->乘上Kd
     float dRaw = pid->dError[0] - pid->dError[1];
-    pid->state = LPF(dRaw, &pid->state, 0.1);
+    pid->state = LPF(dRaw, &pid->state, 0.15);
     pid->dOut = pid->Kd * pid->state;
 
 

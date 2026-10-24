@@ -85,6 +85,10 @@
 #define Steer_PWM_Center        747
 #define Steer_PWM_Limit_Lift    (Steer_PWM_Center - KR)//616
 #define Steer_PWM_Limit_Right   (Steer_PWM_Center + KR)//872
+#define MAGNET_SENSOR_PORT      GPIOC
+#define MAGNET_SENSOR_PIN       GPIO_PIN_6
+#define MAGNET_ACTIVE_LEVEL     GPIO_PIN_RESET
+#define MAGNET_ARM_DELAY_MS     5000U
 
 
 /* USER CODE END PD */
@@ -108,6 +112,7 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 static void SteeringControlUpdate(void);
 static void updateSwichState(int code);
+static void updateMagnetStop(uint32_t now);
 
 /* USER CODE END PFP */
 
@@ -141,12 +146,12 @@ static PID_TypeDef PID = {
   .outMaxABS = 1.0f
 };
 static const PID_Map PIDMap = {
-    .KpMin = 0.77f,
+    .KpMin = 0.5f,
     .KiMin = 0.0f,
-    .KdMin = 0.3f,
+    .KdMin = 4.0f,
     .KpMax = 1.53f,
     .KiMax = 0.0f,
-    .KdMax = 0.6f
+    .KdMax = 1.5f
 };
 static const float_t KR = 131;          // PID 输出转化为位置值的比例系数 && 舵机最大PWM变化量
 static const float deadZone = 0.03;
@@ -200,6 +205,11 @@ int main(void)
   MX_TIM6_Init();
   MX_TIM2_Init();
   MX_TIM8_Init();
+  GPIO_InitTypeDef magnetGPIO = {0};
+  magnetGPIO.Pin = MAGNET_SENSOR_PIN;
+  magnetGPIO.Mode = GPIO_MODE_INPUT;
+  magnetGPIO.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(MAGNET_SENSOR_PORT, &magnetGPIO);
   MX_TIM1_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
@@ -230,6 +240,7 @@ int main(void)
   while (1)
   { 
       uint32_t now = HAL_GetTick();
+      updateMagnetStop(now);
       if ((uint32_t)(now - Background_LastTick) < 10U)
       {
         __WFI();
@@ -242,7 +253,7 @@ int main(void)
       {
           Motor_DriverEnable(1);
           //Wheel_Left_Speed = 420 + 100 * kv * kv;
-          Wheel_Left_Speed = baseSpeed + addSpeed * kv * kv;
+          Wheel_Left_Speed = 410 + 260 * kv * kv;
       }
       else
       {
@@ -252,8 +263,6 @@ int main(void)
 
       // 设置左轮速度
       Motor_SetSpeed(MOTOR_LEFT, Wheel_Left_Speed);
-
-      stopSigal = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6);
 
       // 读取开关状态并更新编码值
       swichState = Switch_GetCode();
@@ -334,7 +343,9 @@ static void updateADC(void){
   AD_Left = ADC_ReadPin(PIN_PC5);
   AD_Right = ADC_ReadPin(PIN_PA4);
 
-  rawErr = TOT_DiffRatio(AD_Left, AD_Right); //-1~1
+  rawErr = TOT_DiffRatio(
+    TOT_normalize(AD_Left,leftMin,leftMax), 
+    TOT_normalize(AD_Right, rightMin, rightMax)); //-1~1
 
   AD_Left_filted = TOT_AverageFilt(&AD_Left_Filter, AD_Left);
   AD_Right_filted = TOT_AverageFilt(&AD_Right_Filter, AD_Right);
@@ -356,7 +367,7 @@ static void updatePID(void){
 /*currErr: 0------------0.06-----------0.5--------------1*/
 /*s      : 0-------------0----0~1线性---1----------------1*/
 static void updatePID_TOT(void){
-  s = TOT_normalize(fabs(currErr) , 0.06 , 0.5);
+  s = TOT_normalize(fabs(currErr) , 0.07 , 0.5);
   s = clampf(s , 0.0f , 1.0f);
   kp = lerp(PIDMap.KpMin , PIDMap.KpMax , s);
   kd = lerp(PIDMap.KdMin , PIDMap.KdMax , s);
@@ -394,6 +405,54 @@ static void updateSwichState(int code){
       if (code & 0x40U) {
           // Switch_4 当前为有效状态
       }
+}
+
+static void updateMagnetStop(uint32_t now)
+{
+  static GPIO_PinState previousState;
+  static uint32_t enableStartedAt;
+  static uint8_t enableTiming;
+  static uint8_t sensorArmed;
+
+  if (!Switch_EN_ON)
+  {
+    stopSigal = 0U;
+    enableTiming = 0U;
+    sensorArmed = 0U;
+    return;
+  }
+
+  if (stopSigal != 0U)
+  {
+    return;
+  }
+
+  if (!enableTiming)
+  {
+    enableStartedAt = now;
+    enableTiming = 1U;
+    return;
+  }
+
+  if (!sensorArmed)
+  {
+    if ((uint32_t)(now - enableStartedAt) < MAGNET_ARM_DELAY_MS)
+    {
+      return;
+    }
+
+    previousState = HAL_GPIO_ReadPin(MAGNET_SENSOR_PORT, MAGNET_SENSOR_PIN);
+    sensorArmed = 1U;
+    return;
+  }
+
+  GPIO_PinState rawState = HAL_GPIO_ReadPin(MAGNET_SENSOR_PORT, MAGNET_SENSOR_PIN);
+  if (previousState != MAGNET_ACTIVE_LEVEL && rawState == MAGNET_ACTIVE_LEVEL)
+  {
+    stopSigal = 1U;
+  }
+
+  previousState = rawState;
 }
 
 /* USER CODE END 4 */
