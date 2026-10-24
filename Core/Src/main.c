@@ -61,6 +61,8 @@
 #include "adc.h"
 #include "dma.h"
 #include "pid.h"
+#include "stm32f103xe.h"
+#include "stm32f1xx_hal_gpio.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -128,7 +130,8 @@ static float kp = 0.0f;
 static float ki = 0.0f;  
 static float kd = 0.0f;
 float s =  0.0f;                                     //线性插值因子 && 速度因子
-uint16_t swichState = 0;
+uint16_t swichState = 0;                              //拨码开关值
+uint16_t stopSigal = 0;                              //干簧管读取值
 
 /*                                     全局常量定义                                          */
 static PID_HandleTypeDef PIDcontroller;                          // PID 控制器
@@ -140,10 +143,10 @@ static PID_TypeDef PID = {
 static const PID_Map PIDMap = {
     .KpMin = 0.77f,
     .KiMin = 0.0f,
-    .KdMin = 0.23f,
+    .KdMin = 0.3f,
     .KpMax = 1.53f,
     .KiMax = 0.0f,
-    .KdMax = 0.5f
+    .KdMax = 0.6f
 };
 static const float_t KR = 131;          // PID 输出转化为位置值的比例系数 && 舵机最大PWM变化量
 static const float deadZone = 0.03;
@@ -235,7 +238,7 @@ int main(void)
       Background_LastTick = now;
 
       // 根据使能开关状态控制电机驱动和轮速
-      if (Switch_EN_ON)
+      if (Switch_EN_ON && stopSigal == 0)
       {
           Motor_DriverEnable(1);
           //Wheel_Left_Speed = 420 + 100 * kv * kv;
@@ -249,6 +252,8 @@ int main(void)
 
       // 设置左轮速度
       Motor_SetSpeed(MOTOR_LEFT, Wheel_Left_Speed);
+
+      stopSigal = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6);
 
       // 读取开关状态并更新编码值
       swichState = Switch_GetCode();
@@ -375,8 +380,8 @@ static void updateStaticSteer(void){
 static void updateSwichState(int code){ 
       if (code & 0x01U) {
           // Switch_1 当前为有效状态
-        baseSpeed = 390;
-        addSpeed = 170;
+        baseSpeed = 360;
+        addSpeed = 250;
       }
       if (code & 0x04U) {
           // Switch_2 当前为有效状态
