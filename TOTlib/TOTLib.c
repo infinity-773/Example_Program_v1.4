@@ -51,6 +51,69 @@ uint16_t TOT_AverageFilt(TOT_MovingAverage3_t *filter, uint16_t rawValue )
     return (uint16_t)(filter->sum / filter->sample_count);
 }
 
+void Debouncer_Init(Debouncer_t *debouncer, uint8_t initial_state,
+                    uint32_t debounce_ms, Debouncer_Edge_t edge, uint32_t now)
+{
+    if (debouncer == NULL)
+    {
+        return;
+    }
+
+    initial_state = (initial_state != 0U) ? 1U : 0U;
+    debouncer->debounce_ms = debounce_ms;
+    debouncer->candidate_since = now;
+    debouncer->stable_state = initial_state;
+    debouncer->candidate_state = initial_state;
+    debouncer->edge = ((edge >= DEBOUNCER_EDGE_RISING) &&
+                       (edge <= DEBOUNCER_EDGE_BOTH)) ? edge : DEBOUNCER_EDGE_BOTH;
+}
+
+uint8_t Debouncer_Update(Debouncer_t *debouncer, uint8_t raw_state,
+                         uint32_t now)
+{
+    if (debouncer == NULL)
+    {
+        return DEBOUNCER_EVENT_NONE;
+    }
+
+    raw_state = (raw_state != 0U) ? 1U : 0U;
+    if (raw_state != debouncer->candidate_state)
+    {
+        debouncer->candidate_state = raw_state;
+        debouncer->candidate_since = now;
+    }
+
+    if (raw_state == debouncer->stable_state)
+    {
+        return DEBOUNCER_EVENT_NONE;
+    }
+
+    uint8_t event = raw_state ? DEBOUNCER_EVENT_PRESSED : DEBOUNCER_EVENT_RELEASED;
+    uint8_t should_debounce =
+        (debouncer->edge == DEBOUNCER_EDGE_BOTH) ||
+        ((debouncer->edge == DEBOUNCER_EDGE_RISING) && (raw_state != 0U)) ||
+        ((debouncer->edge == DEBOUNCER_EDGE_FALLING) && (raw_state == 0U));
+
+    if (!should_debounce ||
+        ((uint32_t)(now - debouncer->candidate_since) >= debouncer->debounce_ms))
+    {
+        debouncer->stable_state = raw_state;
+        return event;
+    }
+
+    return DEBOUNCER_EVENT_NONE;
+}
+
+uint8_t Debouncer_GetState(const Debouncer_t *debouncer)
+{
+    if (debouncer == NULL)
+    {
+        return 0U;
+    }
+
+    return debouncer->stable_state;
+}
+
 //一阶低通滤波
 float LPF(float input, float *state, float alpha)
 {
