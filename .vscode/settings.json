@@ -6,6 +6,8 @@
     "cmake.preferredGenerators": [
         "Ninja"
     ],
+    "C_Cpp.intelliSenseEngine": "default",
+    "stm32cube-ide-clangd.enable": false,
     "stm32cube-ide-clangd.path": "cube",
     "stm32cube-ide-clangd.arguments": [
         "starm-clangd",
