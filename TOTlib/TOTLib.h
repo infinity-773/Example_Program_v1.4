@@ -19,10 +19,6 @@ typedef struct
 	uint8_t sample_count;
 } TOT_MovingAverage3_t;
 
-#define DEBOUNCER_EVENT_NONE     0U
-#define DEBOUNCER_EVENT_PRESSED  1U
-#define DEBOUNCER_EVENT_RELEASED 2U
-
 typedef enum
 {
 	DEBOUNCER_EDGE_RISING = 0U,
@@ -78,9 +74,8 @@ uint16_t TOT_AverageFilt(TOT_MovingAverage3_t *filter, uint16_t sample);
 
 void Debouncer_Init(Debouncer_t *debouncer, uint8_t initial_state,
 				   uint32_t debounce_ms, Debouncer_Edge_t edge, uint32_t now);
-uint8_t Debouncer_Update(Debouncer_t *debouncer, uint8_t raw_state,
+uint8_t Debouncer_calc(Debouncer_t *debouncer, uint8_t raw_state,
 						 uint32_t now);
-uint8_t Debouncer_GetState(const Debouncer_t *debouncer);
 
 void PID_LoadGains(PID_TypeDef *pid, float Kp, float Ki, float Kd);
 float PID_Calculate(PID_TypeDef *pid, float pIn , float iIn, float dIn );

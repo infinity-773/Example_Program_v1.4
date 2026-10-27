@@ -17,7 +17,7 @@
 #define PI                              (3.1415926535897932384626433832795f)
 
 
-#define VOFA_JustFloat_index    10
+#define VOFA_JustFloat_index    8
 
 /* ========= ȫ�ֱ������� ========== */
 

@@ -7,7 +7,7 @@ void VOFA_JustFloat(UART_HandleTypeDef *huart)
     float data[VOFA_JustFloat_index] = {0.0};
     const uint8_t end[4] = {0x00, 0x00, 0x80, 0x7f};
 
-    extern volatile int16_t AD_Left, AD_Right, Wheel_Left_Speed, steerOutput, baseSpeed, addSpeed;
+    extern volatile int16_t AD_Left, AD_Right, Wheel_Left_Speed, steerOutput;
     extern float currErr, rawErr, posErr, s;
     
     data[0] = AD_Left;
@@ -18,8 +18,7 @@ void VOFA_JustFloat(UART_HandleTypeDef *huart)
     data[5] = s;
     data[6] = Wheel_Left_Speed;
     data[7] = steerOutput;
-    data[8] = baseSpeed;
-    data[9] = addSpeed;
+
     Usart_SendArr(huart, (uint8_t*)data, sizeof(float) * VOFA_JustFloat_index);
 
     Usart_SendArr(huart, (uint8_t*)end, 4);

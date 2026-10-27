@@ -90,9 +90,14 @@
 #define MAGNET_SENSOR_PIN       GPIO_PIN_6
 #define MAGNET_ACTIVE_LEVEL     GPIO_PIN_RESET
 #define MAGNET_ARM_DELAY_MS     5000U
+#define MAGNET_DEBOUNCE_MS      20U
+#define MOTOR_ENABLE_DELAY_MS   3000U
 #define BRAKE_REVERSE_SPEED     (-180)
-#define BRAKE_REVERSE_MS        100U
-
+#define BRAKE_REVERSE_MS        200U
+#define DEADZONE                0.03
+#define KR                      131U        // PID 输出转化为位置值的比例系数 && 舵机最大PWM变化量
+#define ADCMIN                  0.0
+#define ADCMAX                  4095.0
 
 /* USER CODE END PD */
 
@@ -104,8 +109,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+static uint32_t now;
 static uint32_t Background_LastTick;
-static uint32_t Brake_StartTick;
 static TOT_MovingAverage3_t AD_Left_Filter;
 static TOT_MovingAverage3_t AD_Right_Filter;
 
@@ -117,6 +122,7 @@ void SystemClock_Config(void);
 static void SteeringControlUpdate(void);
 static void updateMagnetStop(uint32_t now);
 static void updateMotorControl(uint32_t now);
+static int16_t calculateDriveSpeed(void);
 
 /* USER CODE END PFP */
 
@@ -131,16 +137,13 @@ float rawErr = 0;                                           //原值->差比和
 static float pidOut = 0;                                           // 当前误差值(-1~1)
 float posErr = 0;                                           // 误差值转化为位置值(+-130)
 int16_t Wheel_Left_Speed;                               // 电机目标速度
-int16_t baseSpeed = 0;
-int16_t addSpeed = 0;
 static float kv  = 0;
 uint16_t steerOutput = 747U;                                // 转向 PWM 输出值
 static float kp = 0.0f; 
 static float ki = 0.0f;  
 static float kd = 0.0f;
 float s =  0.0f;                                     //线性插值因子 && 速度因子
-uint16_t swichState = 0;                              //拨码开关值
-uint16_t stopSigal = 0;                              //干簧管读取值
+static uint8_t stopSignal = 0U;
 
 /*                                     全局常量定义                                          */
 static PID_HandleTypeDef PIDcontroller;                          // PID 控制器
@@ -156,16 +159,7 @@ static const PID_Map PIDMap = {
     .KpMax = 1.7f,
     .KiMax = 0.0f,
     .KdMax = 0.7f
-};
-static const float_t KR = 131;          // PID 输出转化为位置值的比例系数 && 舵机最大PWM变化量
-static const float deadZone = 0.03;
-
-const uint16_t steerCenter = Steer_PWM_Center;
-
-const float_t leftMin = 0.0f;                                 // 左路 ADC 最小值
-const float_t leftMax = 4095.0f;                              // 左路 ADC 最大值 //TODO
-const float_t rightMin = 0.0f;                                // 右路 ADC 最小值
-const float_t rightMax = 4095.0f;                             // 右路 ADC 最大值  //TODO
+};       
 
 
 
@@ -243,7 +237,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   { 
-      uint32_t now = HAL_GetTick();
+      now = HAL_GetTick();
       updateMagnetStop(now);
       if ((uint32_t)(now - Background_LastTick) < 10U)
       {
@@ -320,7 +314,7 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 static void SteeringControlUpdate(void)
 {
-  steerOutput = steerCenter + (int16_t)posErr;
+  steerOutput = Steer_PWM_Center + (int16_t)posErr;
   steerOutput = Data_Limit(steerOutput, Steer_PWM_Limit_Lift, Steer_PWM_Limit_Right);
 }
 
@@ -329,18 +323,18 @@ static void updateADC(void){
   AD_Right = ADC_ReadPin(PIN_PA4);
 
   rawErr = TOT_DiffRatio(
-    TOT_normalize(AD_Left,leftMin,leftMax), 
-    TOT_normalize(AD_Right, rightMin, rightMax)); //-1~1
+    TOT_normalize(AD_Left,ADCMIN,ADCMAX), 
+    TOT_normalize(AD_Right,ADCMIN, ADCMAX)); //-1~1
 
   AD_Left_filted = TOT_AverageFilt(&AD_Left_Filter, AD_Left);
   AD_Right_filted = TOT_AverageFilt(&AD_Right_Filter, AD_Right);
-  AD_Left_Normalized = TOT_normalize(AD_Left_filted, leftMin, leftMax);
-  AD_Right_Normalized = TOT_normalize(AD_Right_filted, rightMin, rightMax);
+  AD_Left_Normalized = TOT_normalize(AD_Left_filted,ADCMIN , ADCMAX);
+  AD_Right_Normalized = TOT_normalize(AD_Right_filted,ADCMIN , ADCMAX);
   currErr = TOT_DiffRatio(AD_Left_Normalized, AD_Right_Normalized); //-1~1
   currErr = clampf(currErr, -1 , 1);
 
-  applyDeadZone(&currErr , deadZone);
-  applyDeadZone(&rawErr , deadZone);
+  applyDeadZone(&currErr , DEADZONE);
+  applyDeadZone(&rawErr , DEADZONE);
 }
 
 static void updatePID(void){
@@ -368,52 +362,58 @@ static void updateSpeed(void){
   kv = 1 - s;
 }
 
-static void updateStaticSteer(void){
-      steerOutput = 747U;
 
+static int16_t calculateDriveSpeed(void)
+{
+  if (Switch_GetState_Index(Switch_Index_1))
+  {
+    return 320 + 220 * kv * kv * kv;
+  }
+
+  return 400 + 300 * kv * kv * kv;
 }
 
 static void updateMotorControl(uint32_t now)
 {
-  swichState = Switch_GetCode();
-  if (Switch_GetState_Index(Switch_Index_1))
-  {
-    baseSpeed = 320;
-    addSpeed = 220;
-  }
-  else
-  {
-    baseSpeed = 400;
-    addSpeed = 300;
-  }
+  static uint32_t enableStartedAt;
+  static uint8_t enableTiming;
+
+  Switch_GetCode();
 
   if (!Switch_EN_ON)
   {
+    enableTiming = 0U;
     Motor_DriverEnable(0);
     Wheel_Left_Speed = 0;
   }
-  else if (stopSigal == 0U)
+  else if (stopSignal == 2U)
   {
-    Motor_DriverEnable(1);
-    Wheel_Left_Speed = baseSpeed + addSpeed * kv * kv * kv;
+    Motor_DriverEnable(0);
+    Wheel_Left_Speed = 0;
   }
-  else if (stopSigal == 1U)
+  else if (stopSignal == 1U)
   {
     Motor_DriverEnable(1);
-    if ((uint32_t)(now - Brake_StartTick) < BRAKE_REVERSE_MS)
-    {
-      Wheel_Left_Speed = BRAKE_REVERSE_SPEED;
-    }
-    else
-    {
-      Wheel_Left_Speed = 0;
-      stopSigal = 2U;
-    }
+    Wheel_Left_Speed = BRAKE_REVERSE_SPEED;
   }
   else
   {
-    Motor_DriverEnable(0);
-    Wheel_Left_Speed = 0;
+    if (!enableTiming)
+    {
+      enableStartedAt = now;
+      enableTiming = 1U;
+    }
+
+    if ((uint32_t)(now - enableStartedAt) < MOTOR_ENABLE_DELAY_MS)
+    {
+      Motor_DriverEnable(0);
+      Wheel_Left_Speed = 0;
+    }
+    else
+    {
+      Motor_DriverEnable(1);
+      Wheel_Left_Speed = calculateDriveSpeed();
+    }
   }
 
   Motor_SetSpeed(MOTOR_LEFT, Wheel_Left_Speed);
@@ -421,51 +421,67 @@ static void updateMotorControl(uint32_t now)
 
 static void updateMagnetStop(uint32_t now)
 {
-  static GPIO_PinState previousState;
+  typedef enum
+  {
+    MAGNET_WAITING,
+    MAGNET_ARMING,
+    MAGNET_ARMED
+  } MagnetArmState;
+
   static uint32_t enableStartedAt;
-  static uint8_t enableTiming;
-  static uint8_t sensorArmed;
+  static uint32_t brakeStartedAt;
+  static MagnetArmState armState = MAGNET_WAITING;
+  static uint8_t debouncedState;
+  static Debouncer_t magnetDebouncer;
 
   if (!Switch_EN_ON)
   {
-    stopSigal = 0U;
-    enableTiming = 0U;
-    sensorArmed = 0U;
+    stopSignal = 0U;
+    armState = MAGNET_WAITING;
     return;
   }
 
-  if (stopSigal != 0U)
+  if (stopSignal != 0U)
   {
+    if (stopSignal == 1U &&
+        (uint32_t)(now - brakeStartedAt) >= BRAKE_REVERSE_MS)
+    {
+      stopSignal = 2U;
+    }
     return;
   }
 
-  if (!enableTiming)
+  if (armState == MAGNET_WAITING)
   {
     enableStartedAt = now;
-    enableTiming = 1U;
-    return;
+    armState = MAGNET_ARMING;
   }
 
-  if (!sensorArmed)
+  if (armState == MAGNET_ARMING)
   {
     if ((uint32_t)(now - enableStartedAt) < MAGNET_ARM_DELAY_MS)
     {
       return;
     }
 
-    previousState = HAL_GPIO_ReadPin(MAGNET_SENSOR_PORT, MAGNET_SENSOR_PIN);
-    sensorArmed = 1U;
+    GPIO_PinState rawState = HAL_GPIO_ReadPin(MAGNET_SENSOR_PORT, MAGNET_SENSOR_PIN);
+    debouncedState = (rawState == MAGNET_ACTIVE_LEVEL) ? 1U : 0U;
+    Debouncer_Init(&magnetDebouncer, debouncedState, MAGNET_DEBOUNCE_MS,
+                   DEBOUNCER_EDGE_RISING, now);
+    armState = MAGNET_ARMED;
     return;
   }
 
   GPIO_PinState rawState = HAL_GPIO_ReadPin(MAGNET_SENSOR_PORT, MAGNET_SENSOR_PIN);
-  if (previousState != MAGNET_ACTIVE_LEVEL && rawState == MAGNET_ACTIVE_LEVEL)
+  uint8_t filteredState = Debouncer_calc(
+      &magnetDebouncer, rawState == MAGNET_ACTIVE_LEVEL, now);
+  if (!debouncedState && filteredState)
   {
-    stopSigal = 1U;
-    Brake_StartTick = now;
+    stopSignal = 1U;
+    brakeStartedAt = now;
   }
 
-  previousState = rawState;
+  debouncedState = filteredState;
 }
 
 /* USER CODE END 4 */
