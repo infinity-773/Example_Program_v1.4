@@ -181,4 +181,9 @@ float PID_Calculate(PID_TypeDef *pid, float pIn , float iIn, float dIn)
     return pid->out;
 }
 
+static inline uint8_t TimeElapsed(
+    uint32_t now, uint32_t started_at, uint32_t duration_ms)
+{
+    return (uint32_t)(now - started_at) >= duration_ms;
+}
 

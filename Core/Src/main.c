@@ -72,6 +72,8 @@
 /* USER CODE BEGIN Includes */
 #include "headfiles.h"
 #include "TOTLib.h"
+#include "ReedSwitch.h"
+#include "VehicleController.h"
 #include <math.h>
 #include <stdint.h>
 /* USER CODE END Includes */
@@ -83,19 +85,13 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define Steer_PWM_Center        747
-#define Steer_PWM_Limit_Lift    (Steer_PWM_Center - KR)//616
-#define Steer_PWM_Limit_Right   (Steer_PWM_Center + KR)//872
+#define Steer_PWM_Center        747U
+#define Steer_PWM_Limit_Lift    (Steer_PWM_Center - 155)//616
+#define Steer_PWM_Limit_Right   (Steer_PWM_Center + 155)//872
 #define MAGNET_SENSOR_PORT      GPIOC
 #define MAGNET_SENSOR_PIN       GPIO_PIN_6
 #define MAGNET_ACTIVE_LEVEL     GPIO_PIN_RESET
-#define MAGNET_ARM_DELAY_MS     5000U
-#define MAGNET_DEBOUNCE_MS      20U
-#define MOTOR_ENABLE_DELAY_MS   3000U
-#define BRAKE_REVERSE_SPEED     (-180)
-#define BRAKE_REVERSE_MS        200U
 #define DEADZONE                0.03
-#define KR                      131U        // PID 输出转化为位置值的比例系数 && 舵机最大PWM变化量
 #define ADCMIN                  0.0
 #define ADCMAX                  4095.0
 
@@ -111,6 +107,9 @@
 /* USER CODE BEGIN PV */
 static uint32_t now;
 static uint32_t Background_LastTick;
+static Motor LeftMotor;
+static ReedSwitch ParkingSensor;
+static VehicleController Vehicle;
 static TOT_MovingAverage3_t AD_Left_Filter;
 static TOT_MovingAverage3_t AD_Right_Filter;
 
@@ -120,9 +119,9 @@ static TOT_MovingAverage3_t AD_Right_Filter;
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 static void SteeringControlUpdate(void);
-static void updateMagnetStop(uint32_t now);
-static void updateMotorControl(uint32_t now);
 static int16_t calculateDriveSpeed(void);
+static uint8_t MotorEnableIsOn(void);
+static uint8_t MagnetSensorIsActive(void);
 
 /* USER CODE END PFP */
 
@@ -130,38 +129,33 @@ static int16_t calculateDriveSpeed(void);
 /* USER CODE BEGIN 0 */
 /*                          全局状态变量定义                                     */
 volatile int16_t AD_Left, AD_Right;                         // 左右两路 ADC 采样值
+volatile int16_t Wheel_Left_Speed;
 static int16_t AD_Left_filted, AD_Right_filted;                    // 左右两路 ADC 滤波后值
 static float AD_Left_Normalized , AD_Right_Normalized;      //左右两路归一化值
 float currErr = 0;                                          //均值滤波->差比和
 float rawErr = 0;                                           //原值->差比和
 static float pidOut = 0;                                           // 当前误差值(-1~1)
 float posErr = 0;                                           // 误差值转化为位置值(+-130)
-int16_t Wheel_Left_Speed;                               // 电机目标速度
 static float kv  = 0;
 uint16_t steerOutput = 747U;                                // 转向 PWM 输出值
 static float kp = 0.0f; 
 static float ki = 0.0f;  
 static float kd = 0.0f;
 float s =  0.0f;                                     //线性插值因子 && 速度因子
-static uint8_t stopSignal = 0U;
 
 /*                                     全局常量定义                                          */
-static PID_HandleTypeDef PIDcontroller;                          // PID 控制器
-static PID_InitTypeDef PIDInit;                  // PID 控制器初始化结构体
 static PID_TypeDef PID = {
   .iOutMax = 0.0f,
-  .outMaxABS = 1.0f
+  .outMaxABS = 1000.0f
 };
 static const PID_Map PIDMap = {
-    .KpMin = 0.5f,
+    .KpMin = 7.5f,
     .KiMin = 0.0f,
-    .KdMin = 4.2f,
-    .KpMax = 1.7f,
+    .KdMin = 0.0f,
+    .KpMax = 265.0f,
     .KiMax = 0.0f,
-    .KdMax = 0.7f
+    .KdMax = 0.0f
 };       
-
-
 
 /* USER CODE END 0 */
 
@@ -194,6 +188,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  Motor_DriverEnable(1U);
   MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_USART3_UART_Init();
@@ -216,20 +211,11 @@ int main(void)
 
   /* ADC 初始化 */
   ADC_Init();
+  Motor_Init(&LeftMotor, MOTOR_LEFT, 0, Motor_SetSpeed, MotorEnableIsOn);
+  ReedSwitch_Init(&ParkingSensor, MagnetSensorIsActive);
+  VehicleController_Init(&Vehicle, &LeftMotor, &ParkingSensor);
   Background_LastTick = HAL_GetTick();
 
-  //PID初始化
-  PIDInit = (PID_InitTypeDef){
-      .mode = PID_MODE_POSITION,
-      .kp = kp,
-      .ki = ki,
-      .kd = kd,
-      .iOutMax = 0.0f,
-      .outMax = 1.0f
-  };
-  PID_init(&PIDcontroller, &PIDInit);
-  
-  //PID_LoadGains(&PID, kp, ki, kd);
 
   /* USER CODE END 2 */
 
@@ -238,7 +224,6 @@ int main(void)
   while (1)
   { 
       now = HAL_GetTick();
-      updateMagnetStop(now);
       if ((uint32_t)(now - Background_LastTick) < 10U)
       {
         __WFI();
@@ -246,7 +231,20 @@ int main(void)
       }
       Background_LastTick = now;
 
-      updateMotorControl(now);
+      Switch_GetCode();
+      
+      switch (LeftMotor.state)
+      {
+      case MOTOR_RUNNING:
+        Wheel_Left_Speed = LeftMotor.speed;
+        break;
+      case MOTOR_BRAKING:
+        Wheel_Left_Speed = MOTOR_BRAKE_REVERSE_SPEED;
+        break;
+      default:
+        Wheel_Left_Speed = 0;
+        break;
+      }
 
       // 根据开关状态更新 LED 和 PWM 呼吸灯
       PWM_SetPin(PIN_PA11, Switch_GetState_Index(Switch_Index_1) * PWM_BreathDuty());
@@ -337,23 +335,18 @@ static void updateADC(void){
   applyDeadZone(&rawErr , DEADZONE);
 }
 
-static void updatePID(void){
-  pidOut = PID_calc_err(&PIDcontroller, -currErr);
-  posErr = pidOut > 0 ? pidOut *  KR  : pidOut * (KR + 1);
-
-}
 
 /*currErr: 0------------0.06-----------0.5--------------1*/
 /*s      : 0-------------0----0~1线性---1----------------1*/
 static void updatePID_TOT(void){
-  s = TOT_normalize(fabs(currErr) , 0.07 , 0.5);
+  s = TOT_normalize(fabs(currErr) , 0.1 , 0.6);
   s = clampf(s , 0.0f , 1.0f);
   kp = lerp(PIDMap.KpMin , PIDMap.KpMax , s);
   kd = lerp(PIDMap.KdMin , PIDMap.KdMax , s);
 
   PID_LoadGains(&PID,kp,ki,kd);
   pidOut = PID_Calculate(&PID, -currErr, 0.0f, -rawErr);
-  posErr = pidOut > 0 ? pidOut *  KR  : pidOut * (KR + 1);
+  posErr = pidOut;
 
 }
 
@@ -367,121 +360,21 @@ static int16_t calculateDriveSpeed(void)
 {
   if (Switch_GetState_Index(Switch_Index_1))
   {
-    return 320 + 220 * kv * kv * kv;
+    return 420 +320 * kv * kv * kv;
   }
 
-  return 400 + 300 * kv * kv * kv;
+  return 437 + 270 * kv * kv * kv;
 }
 
-static void updateMotorControl(uint32_t now)
+static uint8_t MotorEnableIsOn(void)
 {
-  static uint32_t enableStartedAt;
-  static uint8_t enableTiming;
-
-  Switch_GetCode();
-
-  if (!Switch_EN_ON)
-  {
-    enableTiming = 0U;
-    Motor_DriverEnable(0);
-    Wheel_Left_Speed = 0;
-  }
-  else if (stopSignal == 2U)
-  {
-    Motor_DriverEnable(0);
-    Wheel_Left_Speed = 0;
-  }
-  else if (stopSignal == 1U)
-  {
-    Motor_DriverEnable(1);
-    Wheel_Left_Speed = BRAKE_REVERSE_SPEED;
-  }
-  else
-  {
-    if (!enableTiming)
-    {
-      enableStartedAt = now;
-      enableTiming = 1U;
-    }
-
-    if ((uint32_t)(now - enableStartedAt) < MOTOR_ENABLE_DELAY_MS)
-    {
-      Motor_DriverEnable(0);
-      Wheel_Left_Speed = 0;
-    }
-    else
-    {
-      Motor_DriverEnable(1);
-      Wheel_Left_Speed = calculateDriveSpeed();
-    }
-  }
-
-  Motor_SetSpeed(MOTOR_LEFT, Wheel_Left_Speed);
+  return Switch_EN_ON ? 1U : 0U;
 }
 
-static void updateMagnetStop(uint32_t now)
+static uint8_t MagnetSensorIsActive(void)
 {
-  typedef enum
-  {
-    MAGNET_WAITING,
-    MAGNET_ARMING,
-    MAGNET_ARMED
-  } MagnetArmState;
-
-  static uint32_t enableStartedAt;
-  static uint32_t brakeStartedAt;
-  static MagnetArmState armState = MAGNET_WAITING;
-  static uint8_t debouncedState;
-  static Debouncer_t magnetDebouncer;
-
-  if (!Switch_EN_ON)
-  {
-    stopSignal = 0U;
-    armState = MAGNET_WAITING;
-    return;
-  }
-
-  if (stopSignal != 0U)
-  {
-    if (stopSignal == 1U &&
-        (uint32_t)(now - brakeStartedAt) >= BRAKE_REVERSE_MS)
-    {
-      stopSignal = 2U;
-    }
-    return;
-  }
-
-  if (armState == MAGNET_WAITING)
-  {
-    enableStartedAt = now;
-    armState = MAGNET_ARMING;
-  }
-
-  if (armState == MAGNET_ARMING)
-  {
-    if ((uint32_t)(now - enableStartedAt) < MAGNET_ARM_DELAY_MS)
-    {
-      return;
-    }
-
-    GPIO_PinState rawState = HAL_GPIO_ReadPin(MAGNET_SENSOR_PORT, MAGNET_SENSOR_PIN);
-    debouncedState = (rawState == MAGNET_ACTIVE_LEVEL) ? 1U : 0U;
-    Debouncer_Init(&magnetDebouncer, debouncedState, MAGNET_DEBOUNCE_MS,
-                   DEBOUNCER_EDGE_RISING, now);
-    armState = MAGNET_ARMED;
-    return;
-  }
-
-  GPIO_PinState rawState = HAL_GPIO_ReadPin(MAGNET_SENSOR_PORT, MAGNET_SENSOR_PIN);
-  uint8_t filteredState = Debouncer_calc(
-      &magnetDebouncer, rawState == MAGNET_ACTIVE_LEVEL, now);
-  if (!debouncedState && filteredState)
-  {
-    stopSignal = 1U;
-    brakeStartedAt = now;
-  }
-
-  debouncedState = filteredState;
+  return HAL_GPIO_ReadPin(MAGNET_SENSOR_PORT, MAGNET_SENSOR_PIN) ==
+         MAGNET_ACTIVE_LEVEL;
 }
 
 /* USER CODE END 4 */
@@ -525,6 +418,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       //updateADC();
       //SteeringControlUpdate();
       updateSpeed();
+      VehicleController_periodic(&Vehicle, HAL_GetTick(), calculateDriveSpeed());
       //PWM_SetPin(PIN_PB0, steerOutput);
     }
   }

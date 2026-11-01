@@ -52,6 +52,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Libraries/common/PWM.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Libraries/device/RC.c
     ${CMAKE_CURRENT_SOURCE_DIR}/TOTLib/TOTLib.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/TOTLib/Motor.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/TOTLib/ReedSwitch.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/TOTLib/VehicleController.c
 )
 
 # Add include paths
