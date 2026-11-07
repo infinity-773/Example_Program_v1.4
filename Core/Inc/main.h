@@ -105,6 +105,22 @@ void Error_Handler(void);
 #define Wheel_Left_IO_GPIO_Port GPIOB
 #define Wheel_Right_IO_Pin GPIO_PIN_9
 #define Wheel_Right_IO_GPIO_Port GPIOB
+#define mLED_1_GPIO_Port GPIOB
+#define mLED_1_Pin GPIO_PIN_10
+#define mLED_2_GPIO_Port GPIOB
+#define mLED_2_Pin GPIO_PIN_1
+#define mLED_3_GPIO_Port GPIOB
+#define mLED_3_Pin GPIO_PIN_12
+#define mLED_4_GPIO_Port GPIOB
+#define mLED_4_Pin GPIO_PIN_11
+#define mLED_5_GPIO_Port GPIOB
+#define mLED_5_Pin GPIO_PIN_13
+#define mLED_6_GPIO_Port GPIOB
+#define mLED_6_Pin GPIO_PIN_14
+#define mLED_7_GPIO_Port GPIOB
+#define mLED_7_Pin GPIO_PIN_15
+#define buzzer_GPIO_Port GPIOD
+#define buzzer_Pin GPIO_PIN_2
 
 /* USER CODE BEGIN Private defines */
 

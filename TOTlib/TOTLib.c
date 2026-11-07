@@ -25,7 +25,7 @@ float TOT_DiffRatio(float leftnum,float rightnum){ //TODO :参数改为正数
 }
 
 
-//3点移动平均滤波
+//3点加权移动平均滤波，较新的样本权重较高
 uint16_t TOT_AverageFilt(TOT_MovingAverage3_t *filter, uint16_t rawValue )
 {
     if (filter == NULL)
@@ -48,7 +48,20 @@ uint16_t TOT_AverageFilt(TOT_MovingAverage3_t *filter, uint16_t rawValue )
 
     filter->next_index = (uint8_t)((filter->next_index + 1U) % 3U);
 
-    return (uint16_t)(filter->sum / filter->sample_count);
+    uint8_t oldest_index = (filter->sample_count < 3U) ?
+        0U : filter->next_index;
+    uint32_t weighted_sum = 0U;
+    uint32_t weight_sum = 0U;
+
+    for (uint8_t i = 0U; i < filter->sample_count; i++)
+    {
+        uint8_t sample_index = (uint8_t)((oldest_index + i) % 3U);
+        uint8_t weight = (uint8_t)(i + 1U);
+        weighted_sum += (uint32_t)filter->samples[sample_index] * weight;
+        weight_sum += weight;
+    }
+
+    return (uint16_t)(weighted_sum / weight_sum);
 }
 
 void Debouncer_Init(Debouncer_t *debouncer, uint8_t initial_state,

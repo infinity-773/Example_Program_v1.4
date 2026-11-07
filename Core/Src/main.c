@@ -91,6 +91,9 @@
 #define MAGNET_SENSOR_PORT      GPIOC
 #define MAGNET_SENSOR_PIN       GPIO_PIN_6
 #define MAGNET_ACTIVE_LEVEL     GPIO_PIN_RESET
+#define LOST_THRESHOLD_LEFT     400U //TODO
+#define LOST_THRESHOLD_RIGHT    400U //TODO
+#define LOST_DIFF_DEADBAND      20U
 #define DEADZONE                0.03
 #define ADCMIN                  0.0
 #define ADCMAX                  4095.0
@@ -149,10 +152,10 @@ static PID_TypeDef PID = {
   .outMaxABS = 1000.0f
 };
 static const PID_Map PIDMap = {
-    .KpMin = 7.5f,
+    .KpMin = 4.0f,
     .KiMin = 0.0f,
     .KdMin = 0.0f,
-    .KpMax = 265.0f,
+    .KpMax = 240.0f,
     .KiMax = 0.0f,
     .KdMax = 0.0f
 };       
@@ -312,6 +315,37 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 static void SteeringControlUpdate(void)
 {
+  uint8_t leftLost = AD_Left < LOST_THRESHOLD_LEFT;
+  uint8_t rightLost = AD_Right < LOST_THRESHOLD_RIGHT;
+
+  if (leftLost && !rightLost)
+  {
+    steerOutput = Steer_PWM_Limit_Right;
+    return;
+  }
+
+  if (rightLost && !leftLost)
+  {
+    steerOutput = Steer_PWM_Limit_Lift;
+    return;
+  }
+
+  if (leftLost && rightLost)
+  {
+    int32_t leftDeficit = (int32_t)LOST_THRESHOLD_LEFT - AD_Left;
+    int32_t rightDeficit = (int32_t)LOST_THRESHOLD_RIGHT - AD_Right;
+
+    if (leftDeficit > rightDeficit + LOST_DIFF_DEADBAND)
+    {
+      steerOutput = Steer_PWM_Limit_Right;
+    }
+    else if (rightDeficit > leftDeficit + LOST_DIFF_DEADBAND)
+    {
+      steerOutput = Steer_PWM_Limit_Lift;
+    }
+    return;
+  }
+
   steerOutput = Steer_PWM_Center + (int16_t)posErr;
   steerOutput = Data_Limit(steerOutput, Steer_PWM_Limit_Lift, Steer_PWM_Limit_Right);
 }
@@ -360,10 +394,10 @@ static int16_t calculateDriveSpeed(void)
 {
   if (Switch_GetState_Index(Switch_Index_1))
   {
-    return 420 +320 * kv * kv * kv;
+    return 420 +320 * kv * kv ;
   }
 
-  return 437 + 270 * kv * kv * kv;
+  return 350 + 430 * kv * kv ;
 }
 
 static uint8_t MotorEnableIsOn(void)
