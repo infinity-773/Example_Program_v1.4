@@ -155,7 +155,7 @@ static const PID_Map PIDMap = {
     .KpMin = 4.0f,
     .KiMin = 0.0f,
     .KdMin = 0.0f,
-    .KpMax = 240.0f,
+    .KpMax = 250.0f,
     .KiMax = 0.0f,
     .KdMax = 0.0f
 };       
@@ -394,10 +394,10 @@ static int16_t calculateDriveSpeed(void)
 {
   if (Switch_GetState_Index(Switch_Index_1))
   {
-    return 420 +320 * kv * kv ;
+    return 420 +360 * kv * kv ;
   }
 
-  return 350 + 430 * kv * kv ;
+  return 360 + 420 * kv * kv ;
 }
 
 static uint8_t MotorEnableIsOn(void)

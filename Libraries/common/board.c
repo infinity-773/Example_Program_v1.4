@@ -139,7 +139,7 @@ void Motor_SetSpeed(BoardMotor_t motor, int16_t speed)
     }
     else
     {
-        pwm = (uint16_t)(MOTOR_PWM_FULL_SCALE + speed);
+        pwm = (uint16_t)(-speed);
         dir = GPIO_PIN_SET;
     }
 

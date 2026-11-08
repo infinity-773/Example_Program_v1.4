@@ -3,7 +3,7 @@
 #include <stddef.h>
 
 #define VEHICLE_START_DELAY_MS      2000U
-#define VEHICLE_MAGNET_ARM_DELAY_MS 3000U
+#define VEHICLE_MAGNET_ARM_DELAY_MS 5000U
 
 void VehicleController_Init(VehicleController *controller, Motor *motor,
                             ReedSwitch *parking_sensor)
