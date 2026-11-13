@@ -22,6 +22,7 @@ typedef struct
     MotorState state;
     BoardMotor_t id;
     int16_t speed;
+    int16_t output;
     uint32_t breakAt;
     MotorSpeedConsumer speed_consumer;
     MotorEnableRead read_enable;
@@ -33,6 +34,7 @@ void Motor_Init(Motor *motor, BoardMotor_t id, int16_t speed,
 void Motor_SetTargetSpeed(Motor *motor, int16_t speed);
 uint8_t Motor_IsEnabled(const Motor *motor);
 uint8_t Motor_IsBraked(const Motor *motor);
+int16_t Motor_GetOutput(const Motor *motor);
 void Motor_periodic(Motor *motor, uint32_t now);
 void Motor_RequestBrake(Motor *motor, uint32_t now);
 void Motor_Start(Motor *motor);

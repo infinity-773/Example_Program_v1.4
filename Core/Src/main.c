@@ -72,8 +72,9 @@
 /* USER CODE BEGIN Includes */
 #include "headfiles.h"
 #include "TOTLib.h"
-#include "ReedSwitch.h"
+#include "ParkingSensor.h"
 #include "VehicleController.h"
+#include "Buzzer.h"
 #include <math.h>
 #include <stdint.h>
 /* USER CODE END Includes */
@@ -85,18 +86,24 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+//转向相关定义
 #define Steer_PWM_Center        747U
 #define Steer_PWM_Limit_Lift    (Steer_PWM_Center - 155)//616
 #define Steer_PWM_Limit_Right   (Steer_PWM_Center + 155)//872
-#define MAGNET_SENSOR_PORT      GPIOC
-#define MAGNET_SENSOR_PIN       GPIO_PIN_6
-#define MAGNET_ACTIVE_LEVEL     GPIO_PIN_RESET
 #define LOST_THRESHOLD_LEFT     400U //TODO
 #define LOST_THRESHOLD_RIGHT    400U //TODO
 #define LOST_DIFF_DEADBAND      20U
 #define DEADZONE                0.03
 #define ADCMIN                  0.0
 #define ADCMAX                  4095.0
+//干簧管相关定义
+#define MAGNET_SENSOR_PORT      GPIOC
+#define MAGNET_SENSOR_PIN       GPIO_PIN_6
+#define MAGNET_ACTIVE_LEVEL     GPIO_PIN_RESET
+//红外传感器相关定义
+#define IR_SENSOR_PORT          GPIOB
+#define IR_SENSOR_PIN           GPIO_PIN_15
+#define IR_ACTIVE_LEVEL         GPIO_PIN_SET
 
 /* USER CODE END PD */
 
@@ -110,8 +117,7 @@
 /* USER CODE BEGIN PV */
 static uint32_t now;
 static uint32_t Background_LastTick;
-static Motor LeftMotor;
-static ReedSwitch ParkingSensor;
+static ParkingSensor ParkSensor;
 static VehicleController Vehicle;
 static TOT_MovingAverage3_t AD_Left_Filter;
 static TOT_MovingAverage3_t AD_Right_Filter;
@@ -125,6 +131,7 @@ static void SteeringControlUpdate(void);
 static int16_t calculateDriveSpeed(void);
 static uint8_t MotorEnableIsOn(void);
 static uint8_t MagnetSensorIsActive(void);
+static uint8_t InfraredSensorIsActive(void);
 
 /* USER CODE END PFP */
 
@@ -194,30 +201,34 @@ int main(void)
   Motor_DriverEnable(1U);
   MX_DMA_Init();
   MX_USART1_UART_Init();
-  MX_USART3_UART_Init();
   MX_TIM3_Init();
   MX_TIM5_Init();
   MX_TIM4_Init();
   MX_TIM6_Init();
   MX_TIM2_Init();
   MX_TIM8_Init();
-  GPIO_InitTypeDef magnetGPIO = {0};
-  magnetGPIO.Pin = MAGNET_SENSOR_PIN;
-  magnetGPIO.Mode = GPIO_MODE_INPUT;
-  magnetGPIO.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(MAGNET_SENSOR_PORT, &magnetGPIO);
   MX_TIM1_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+  GPIO_InitTypeDef sensorGPIO = {0};
+  sensorGPIO.Pin = MAGNET_SENSOR_PIN;
+  sensorGPIO.Mode = GPIO_MODE_INPUT;
+  sensorGPIO.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(MAGNET_SENSOR_PORT, &sensorGPIO);
+  sensorGPIO.Pin = IR_SENSOR_PIN;
+  sensorGPIO.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(IR_SENSOR_PORT, &sensorGPIO);
+
   PWM_Init();   // PWM 初始化
   RC_Init();    // SBUS 遥控接收初始化
+  Buzzer_Init();
 
   /* ADC 初始化 */
   ADC_Init();
-  Motor_Init(&LeftMotor, MOTOR_LEFT, 0, Motor_SetSpeed, MotorEnableIsOn);
-  ReedSwitch_Init(&ParkingSensor, MagnetSensorIsActive);
-  VehicleController_Init(&Vehicle, &LeftMotor, &ParkingSensor);
+  ParkingSensor_Init(&ParkSensor, MagnetSensorIsActive, InfraredSensorIsActive);
+  VehicleController_Init(&Vehicle, MOTOR_MAIN, Motor_SetSpeed, MotorEnableIsOn);
   Background_LastTick = HAL_GetTick();
+  HAL_TIM_Base_Start_IT(&htim8);   // 转向控制节拍 200 Hz
 
 
   /* USER CODE END 2 */
@@ -236,18 +247,7 @@ int main(void)
 
       Switch_GetCode();
       
-      switch (LeftMotor.state)
-      {
-      case MOTOR_RUNNING:
-        Wheel_Left_Speed = LeftMotor.speed;
-        break;
-      case MOTOR_BRAKING:
-        Wheel_Left_Speed = MOTOR_BRAKE_REVERSE_SPEED;
-        break;
-      default:
-        Wheel_Left_Speed = 0;
-        break;
-      }
+      Wheel_Left_Speed = VehicleController_GetOutputSpeed(&Vehicle);
 
       // 根据开关状态更新 LED 和 PWM 呼吸灯
       PWM_SetPin(PIN_PA11, Switch_GetState_Index(Switch_Index_1) * PWM_BreathDuty());
@@ -405,10 +405,18 @@ static uint8_t MotorEnableIsOn(void)
   return Switch_EN_ON ? 1U : 0U;
 }
 
+//从硬件读取干簧管触发状态
 static uint8_t MagnetSensorIsActive(void)
 {
   return HAL_GPIO_ReadPin(MAGNET_SENSOR_PORT, MAGNET_SENSOR_PIN) ==
          MAGNET_ACTIVE_LEVEL;
+}
+
+//从硬件读取红外触发状态
+static uint8_t InfraredSensorIsActive(void)
+{
+  return HAL_GPIO_ReadPin(IR_SENSOR_PORT, IR_SENSOR_PIN) ==
+         IR_ACTIVE_LEVEL;
 }
 
 /* USER CODE END 4 */
@@ -426,24 +434,20 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM7)
+  if (htim->Instance == TIM8)
   {
-    static uint8_t sample_divider = 0U;
+    updateADC();
+    updatePID_TOT();
+    SteeringControlUpdate();
+    PWM_SetPin(PIN_PA3, steerOutput);
+    PWM_SetPin(PIN_PB0, steerOutput);
+  }
+  else if (htim->Instance == TIM7)
+  {
     static uint8_t control_divider = 0U;
 
     HAL_IncTick();
-    sample_divider++;
     control_divider++;
-
-    if (sample_divider >= 5U)
-    {
-      sample_divider = 0U;
-      updateADC();
-      updatePID_TOT();
-      SteeringControlUpdate();
-      PWM_SetPin(PIN_PA3, steerOutput);
-      PWM_SetPin(PIN_PB0, steerOutput);
-    }
 
     if (control_divider >= 10U)
     {
@@ -452,7 +456,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       //updateADC();
       //SteeringControlUpdate();
       updateSpeed();
-      VehicleController_periodic(&Vehicle, HAL_GetTick(), calculateDriveSpeed());
+      VehicleController_periodic(&Vehicle, HAL_GetTick(), calculateDriveSpeed(),
+                 ParkingSensor_IsParking(&ParkSensor));
       //PWM_SetPin(PIN_PB0, steerOutput);
     }
   }

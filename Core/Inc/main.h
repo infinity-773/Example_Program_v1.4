@@ -58,25 +58,14 @@ void Error_Handler(void);
 
 /* Private defines -----------------------------------------------------------*/
 #define huart_DBG huart1
-#define huart_USER huart3
 #define htim_RC htim6
 #define Enable_IO_Pin GPIO_PIN_13
 #define Enable_IO_GPIO_Port GPIOC
 #define PPM_Pin GPIO_PIN_3
 #define PPM_GPIO_Port GPIOC
 #define PPM_EXTI_IRQn EXTI3_IRQn
-#define ENC_CH1_A_Pin GPIO_PIN_0
-#define ENC_CH1_A_GPIO_Port GPIOA
-#define ENC_CH1_B_Pin GPIO_PIN_1
-#define ENC_CH1_B_GPIO_Port GPIOA
-#define Steer_A2_Pin GPIO_PIN_2
-#define Steer_A2_GPIO_Port GPIOA
 #define Steer_A3_Pin GPIO_PIN_3
 #define Steer_A3_GPIO_Port GPIOA
-#define ENC_CH2_A_Pin GPIO_PIN_6
-#define ENC_CH2_A_GPIO_Port GPIOA
-#define ENC_CH2_B_Pin GPIO_PIN_7
-#define ENC_CH2_B_GPIO_Port GPIOA
 #define Steer_B0_Pin GPIO_PIN_0
 #define Steer_B0_GPIO_Port GPIOB
 #define Switch_4_Pin GPIO_PIN_7
@@ -97,30 +86,10 @@ void Error_Handler(void);
 #define LED_3_GPIO_Port GPIOC
 #define LED_4_Pin GPIO_PIN_3
 #define LED_4_GPIO_Port GPIOB
-#define Wheel_Right_PWM_Pin GPIO_PIN_6
-#define Wheel_Right_PWM_GPIO_Port GPIOB
-#define Wheel_Left_PWM_Pin GPIO_PIN_7
-#define Wheel_Left_PWM_GPIO_Port GPIOB
-#define Wheel_Left_IO_Pin GPIO_PIN_8
-#define Wheel_Left_IO_GPIO_Port GPIOB
-#define Wheel_Right_IO_Pin GPIO_PIN_9
-#define Wheel_Right_IO_GPIO_Port GPIOB
-#define mLED_1_GPIO_Port GPIOB
-#define mLED_1_Pin GPIO_PIN_10
-#define mLED_2_GPIO_Port GPIOB
-#define mLED_2_Pin GPIO_PIN_1
-#define mLED_3_GPIO_Port GPIOB
-#define mLED_3_Pin GPIO_PIN_12
-#define mLED_4_GPIO_Port GPIOB
-#define mLED_4_Pin GPIO_PIN_11
-#define mLED_5_GPIO_Port GPIOB
-#define mLED_5_Pin GPIO_PIN_13
-#define mLED_6_GPIO_Port GPIOB
-#define mLED_6_Pin GPIO_PIN_14
-#define mLED_7_GPIO_Port GPIOB
-#define mLED_7_Pin GPIO_PIN_15
-#define buzzer_GPIO_Port GPIOD
-#define buzzer_Pin GPIO_PIN_2
+#define Motor_PWM_Pin GPIO_PIN_7
+#define Motor_PWM_GPIO_Port GPIOB
+#define Motor_DIR_Pin GPIO_PIN_5
+#define Motor_DIR_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

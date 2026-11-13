@@ -4,6 +4,7 @@
 
 static void motorApplySpeed(Motor *motor, int16_t speed)
 {
+	motor->output = speed;
 	if (motor->speed_consumer != NULL)
 	{
 		motor->speed_consumer(motor->id, speed);
@@ -46,6 +47,11 @@ void Motor_SetTargetSpeed(Motor *motor, int16_t speed)
 uint8_t Motor_IsBraked(const Motor *motor)
 {
 	return (motor != NULL && motor->state == MOTOR_BRAKED) ? 1U : 0U;
+}
+
+int16_t Motor_GetOutput(const Motor *motor)
+{
+	return (motor != NULL) ? motor->output : 0;
 }
 
 void Motor_periodic(Motor *motor, uint32_t now)
