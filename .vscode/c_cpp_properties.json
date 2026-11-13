@@ -7,7 +7,7 @@
                 "${workspaceFolder}/Application",
                 "${workspaceFolder}/Libraries/common",
                 "${workspaceFolder}/Libraries/device",
-                "${workspaceFolder}/TOTlib",
+                "${workspaceFolder}/TOTLib",
                 "${workspaceFolder}/Core/Inc",
                 "${workspaceFolder}/Drivers/STM32F1xx_HAL_Driver/Inc",
                 "${workspaceFolder}/Drivers/STM32F1xx_HAL_Driver/Inc/Legacy",
