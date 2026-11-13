@@ -60,8 +60,7 @@ typedef struct
 
 static const MotorHw_t s_motor[MOTOR_COUNT] =
 {
-    [MOTOR_LEFT]  = { PIN_PB7, Wheel_Left_IO_GPIO_Port,  Wheel_Left_IO_Pin  },
-    [MOTOR_RIGHT] = { PIN_PB6, Wheel_Right_IO_GPIO_Port, Wheel_Right_IO_Pin },
+    [MOTOR_MAIN]  = { PIN_PB7, Motor_DIR_GPIO_Port,  Motor_DIR_Pin  },
 };
 
 uint16_t ADC_ReadPin(BoardAdcPin_t pin)

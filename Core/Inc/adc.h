@@ -37,7 +37,7 @@ extern ADC_HandleTypeDef hadc1;
 
 /* USER CODE BEGIN Private defines */
 
-#define ADC_ChannelIndexMax     (6U)
+#define ADC_ChannelIndexMax     (2U)
 
 typedef enum
 {

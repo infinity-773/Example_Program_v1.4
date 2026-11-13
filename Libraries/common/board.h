@@ -60,8 +60,7 @@ typedef enum
 
 typedef enum
 {
-    MOTOR_LEFT,
-    MOTOR_RIGHT,
+    MOTOR_MAIN,
     MOTOR_COUNT
 } BoardMotor_t;
 
