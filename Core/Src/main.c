@@ -72,7 +72,6 @@
 /* USER CODE BEGIN Includes */
 #include "headfiles.h"
 #include "TOTLib.h"
-#include "ParkingSensor.h"
 #include "VehicleController.h"
 #include "Buzzer.h"
 #include <math.h>
@@ -117,7 +116,6 @@
 /* USER CODE BEGIN PV */
 static uint32_t now;
 static uint32_t Background_LastTick;
-static ParkingSensor ParkSensor;
 static VehicleController Vehicle;
 static TOT_MovingAverage3_t AD_Left_Filter;
 static TOT_MovingAverage3_t AD_Right_Filter;
@@ -132,6 +130,8 @@ static int16_t calculateDriveSpeed(void);
 static uint8_t MotorEnableIsOn(void);
 static uint8_t MagnetSensorIsActive(void);
 static uint8_t InfraredSensorIsActive(void);
+static uint8_t StartConditionIsOn(void);
+static uint8_t StopConditionIsOn(void);
 
 /* USER CODE END PFP */
 
@@ -225,7 +225,6 @@ int main(void)
 
   /* ADC 初始化 */
   ADC_Init();
-  ParkingSensor_Init(&ParkSensor, MagnetSensorIsActive, InfraredSensorIsActive);
   VehicleController_Init(&Vehicle, MOTOR_MAIN, Motor_SetSpeed, MotorEnableIsOn);
   Background_LastTick = HAL_GetTick();
   HAL_TIM_Base_Start_IT(&htim8);   // 转向控制节拍 200 Hz
@@ -246,7 +245,7 @@ int main(void)
       Background_LastTick = now;
 
       Switch_GetCode();
-      
+      //这个字段只用于log
       Wheel_Left_Speed = VehicleController_GetOutputSpeed(&Vehicle);
 
       // 根据开关状态更新 LED 和 PWM 呼吸灯
@@ -419,6 +418,18 @@ static uint8_t InfraredSensorIsActive(void)
          IR_ACTIVE_LEVEL;
 }
 
+//开车条件，暂恒为真（使能后延时结束即起步）
+static uint8_t StartConditionIsOn(void)
+{
+  return 1U;
+}
+
+//停车条件：干簧管或红外任一触发
+static uint8_t StopConditionIsOn(void)
+{
+  return (MagnetSensorIsActive() || InfraredSensorIsActive()) ? 1U : 0U;
+}
+
 /* USER CODE END 4 */
 
 /**
@@ -457,7 +468,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       //SteeringControlUpdate();
       updateSpeed();
       VehicleController_periodic(&Vehicle, HAL_GetTick(), calculateDriveSpeed(),
-                 ParkingSensor_IsParking(&ParkSensor));
+                 StartConditionIsOn(), StopConditionIsOn());
       //PWM_SetPin(PIN_PB0, steerOutput);
     }
   }

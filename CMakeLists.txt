@@ -53,9 +53,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Libraries/device/RC.c
     ${CMAKE_CURRENT_SOURCE_DIR}/TOTLib/TOTLib.c
     ${CMAKE_CURRENT_SOURCE_DIR}/TOTLib/Motor.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/TOTLib/ParkingSensor.c
     ${CMAKE_CURRENT_SOURCE_DIR}/TOTLib/Buzzer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/TOTLib/VehicleController.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/TOTLib/VehicleCommand.c
     TOTLib/Buzzer.h
 )
 
