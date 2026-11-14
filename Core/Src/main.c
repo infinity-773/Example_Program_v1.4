@@ -98,11 +98,11 @@
 //干簧管相关定义
 #define MAGNET_SENSOR_PORT      GPIOC
 #define MAGNET_SENSOR_PIN       GPIO_PIN_6
-#define MAGNET_ACTIVE_LEVEL     GPIO_PIN_RESET
+#define MAGNET_ACTIVE_LEVEL     GPIO_PIN_SET
 //红外传感器相关定义
 #define IR_SENSOR_PORT          GPIOB
 #define IR_SENSOR_PIN           GPIO_PIN_15
-#define IR_ACTIVE_LEVEL         GPIO_PIN_SET
+#define IR_ACTIVE_LEVEL         GPIO_PIN_RESET
 
 /* USER CODE END PD */
 
@@ -213,10 +213,10 @@ int main(void)
   GPIO_InitTypeDef sensorGPIO = {0};
   sensorGPIO.Pin = MAGNET_SENSOR_PIN;
   sensorGPIO.Mode = GPIO_MODE_INPUT;
-  sensorGPIO.Pull = GPIO_PULLUP;
+  sensorGPIO.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(MAGNET_SENSOR_PORT, &sensorGPIO);
   sensorGPIO.Pin = IR_SENSOR_PIN;
-  sensorGPIO.Pull = GPIO_PULLDOWN;
+  sensorGPIO.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(IR_SENSOR_PORT, &sensorGPIO);
 
   PWM_Init();   // PWM 初始化
@@ -393,10 +393,10 @@ static int16_t calculateDriveSpeed(void)
 {
   if (Switch_GetState_Index(Switch_Index_1))
   {
-    return 420 +360 * kv * kv ;
+    return 440 +420 * kv * kv ;
   }
 
-  return 360 + 420 * kv * kv ;
+  return 360 + 460 * kv * kv ;
 }
 
 static uint8_t MotorEnableIsOn(void)
@@ -460,7 +460,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
     control_divider++;
 
-    if (control_divider >= 10U)
+    if (control_divider >= 5U)
     {
       control_divider = 0U;
       //updatePID();

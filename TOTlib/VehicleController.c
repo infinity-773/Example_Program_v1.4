@@ -4,7 +4,7 @@
 
 #define VEHICLE_START_DELAY_MS      2000U // 2s后启用开车条件判断
 #define VEHICLE_PARKING_ARM_DELAY_MS 5000U // 5s后启用停车条件判断
-#define VEHICLE_PARKING_DEBOUNCE_MS 20U // 停车条件消抖时间
+#define VEHICLE_PARKING_DEBOUNCE_MS 10U // 停车条件消抖时间
 #define VEHICLE_START_DEBOUNCE_MS   20U // 开车条件消抖时间
 
 void VehicleController_Init(VehicleController *controller, BoardMotor_t motor_id,
