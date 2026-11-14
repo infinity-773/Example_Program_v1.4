@@ -14,8 +14,8 @@ typedef enum
 typedef void (*MotorSpeedConsumer)(BoardMotor_t motor, int16_t speed);
 typedef uint8_t (*MotorEnableRead)(void);
 
-#define MOTOR_BRAKE_REVERSE_SPEED (-180)
-#define MOTOR_BRAKE_DURATION_MS   200U
+#define MOTOR_BRAKE_REVERSE_SPEED (-60)
+#define MOTOR_BRAKE_DURATION_MS   100U
 
 typedef struct
 {
