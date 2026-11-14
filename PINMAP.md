@@ -12,9 +12,9 @@ MCU: STM32F103RCT6 (LQFP64)，SYSCLK 72 MHz，定时器时钟均为 72 MHz。
 | 定时器 | 分频 / 重装 | 频率 | 通道 | 引脚 | 用途 |
 |---|---|---|---|---|---|
 | TIM1 | 0 / 4799 | 15 kHz | CH4 | PA11 | LED_1 呼吸灯 |
-| TIM3 | 143 / 9999 | 50 Hz | CH3 | PB0 | 转向舵机 |
+| TIM3 | 143 / 9999 | 2.5 kHz 音频节拍 (`Buzzer_Init` 改写重装值) | 无 | 无 | 蜂鸣器音频节拍 (`Buzzer.c`)，更新中断优先级 2 |
 | TIM4 | 0 / 4799 | 15 kHz | CH2 | PB7 | 电机 PWM |
-| TIM4 |  |  | CH4 | PB9 | 蜂鸣器 (`Buzzer.c`) |
+| TIM4 |  |  | CH4 | PB9 | 蜂鸣器 15 kHz 载波，由 TIM3 中断门控成音频 (`Buzzer.c`) |
 | TIM5 | 143 / 10000 | 约 50 Hz | CH4 | PA3 | 转向舵机 |
 | TIM6 | 71 / 65535 | 1 MHz 自由计数 | 无 | 无 | PPM 遥控脉宽测量 (`RC_Init` 置 CEN) |
 | TIM7 | 71 / 999 | 1 kHz | 无 | 无 | HAL 时基，兼做车辆控制节拍 |
@@ -43,15 +43,15 @@ TIM3、TIM5 的计数单位是 2 us，转向中心值 747 约 1.49 ms。TIM4 满
 | PA12 | 输入无上拉 | Switch_EN，高电平使能电机 |
 | PA13 / PA14 | SWD | 下载调试 |
 | PA15 | 输出 | LED_2，跟随 Switch_2 |
-| PB0 | AF PP, TIM3_CH3 | 转向舵机备用接口(目前判定损坏) |
+| PB0 | 未使用 | 原 TIM3_CH3 舵机备用接口(判定损坏) |
 | PB3 | 输出 | LED_4，跟随 Switch_4 |
 | PB5 | 输出 | 电机方向，普通 GPIO (模板库通用 GPIO 表中的引脚) |
 | PB7 | AF PP, TIM4_CH2 | 电机 PWM |
 | PB9 | AF PP, TIM4_CH4 | 蜂鸣器 |
-| PB15 | 输入下拉 | 红外传感器 (`IR_SENSOR_PIN`)，高电平触发停车 |
+| PB15 | 输入上拉 | 红外传感器 (`IR_SENSOR_PIN`)，低电平触发停车 |
 | PC3 | EXTI 下降沿, EXTI3 | 遥控 PPM 输入 |
 | PC5 | 模拟, ADC1_IN15 | `AD_Left` 左侧电感 |
-| PC6 | 输入上拉 | 干簧管(`MAGNET_SENSOR_PIN `)，在 `main` 的 `USER CODE BEGIN 2` 中配置|
+| PC6 | 输入下拉 | 干簧管(`MAGNET_SENSOR_PIN `)，在 `main` 的 `USER CODE BEGIN 2` 中配置|
 | PC7 | 输入上拉 | Switch_4 |
 | PC8 | 输入上拉 | Switch_2 |
 | PC9 | 输入上拉 | Switch_3 |

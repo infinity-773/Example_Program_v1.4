@@ -103,6 +103,8 @@
 #define IR_SENSOR_PORT          GPIOB
 #define IR_SENSOR_PIN           GPIO_PIN_15
 #define IR_ACTIVE_LEVEL         GPIO_PIN_RESET
+//蜂鸣器相关定义
+#define Buzzer_PWM_Pin          PIN_PB9
 
 /* USER CODE END PD */
 
@@ -221,7 +223,7 @@ int main(void)
 
   PWM_Init();   // PWM 初始化
   RC_Init();    // SBUS 遥控接收初始化
-  Buzzer_Init();
+  Buzzer_Init(Buzzer_PWM_Pin);
 
   /* ADC 初始化 */
   ADC_Init();
@@ -393,10 +395,14 @@ static int16_t calculateDriveSpeed(void)
 {
   if (Switch_GetState_Index(Switch_Index_1))
   {
-    return 440 +420 * kv * kv ;
+    return 400 +420 * kv * kv ; //820
   }
 
-  return 360 + 460 * kv * kv ;
+  if(Switch_GetState_Index(Switch_Index_2)){
+    return 380 + 400 *kv *kv; //780
+  }
+
+  return 360 + 380 * kv * kv ; //740
 }
 
 static uint8_t MotorEnableIsOn(void)
@@ -430,6 +436,19 @@ static uint8_t StopConditionIsOn(void)
   return (MagnetSensorIsActive() || InfraredSensorIsActive()) ? 1U : 0U;
 }
 
+static void buzzWhenStop(uint16_t now){
+  static uint16_t buzzStartTime = 0U;
+  if (buzzStartTime == 0U)
+  {
+    buzzStartTime = now;
+    Buzzer_SetVolume(50);
+  }
+  else if ((now - buzzStartTime) >= 4000U) // Buzz duration
+  {
+    Buzzer_SetVolume(0);
+  }
+}
+
 /* USER CODE END 4 */
 
 /**
@@ -451,7 +470,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     updatePID_TOT();
     SteeringControlUpdate();
     PWM_SetPin(PIN_PA3, steerOutput);
-    PWM_SetPin(PIN_PB0, steerOutput);
   }
   else if (htim->Instance == TIM7)
   {
@@ -469,6 +487,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       updateSpeed();
       VehicleController_periodic(&Vehicle, HAL_GetTick(), calculateDriveSpeed(),
                  StartConditionIsOn(), StopConditionIsOn());
+      buzzWhenStop(HAL_GetTick());
       //PWM_SetPin(PIN_PB0, steerOutput);
     }
   }
